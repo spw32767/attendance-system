@@ -7,6 +7,7 @@ import LoginPage from "./pages/LoginPage";
 const ROUTE_LOGIN = "/login";
 const ROUTE_TEMPLATES = "/admin/templates";
 const ROUTE_CREATE_TEMPLATE = "/admin/templates/create";
+const THEME_STORAGE_KEY = "attendance-theme";
 
 const normalizePathname = (pathname) => {
   if (!pathname || pathname === "/") {
@@ -38,6 +39,16 @@ const parseRoute = (target) => {
 
 function App() {
   const [route, setRoute] = useState(() => parseRoute(window.location.href));
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (savedTheme === "light" || savedTheme === "dark") {
+      return savedTheme;
+    }
+
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
 
   useEffect(() => {
     const normalized = parseRoute(window.location.href);
@@ -61,6 +72,15 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((current) => (current === "dark" ? "light" : "dark"));
+  };
+
   const navigate = (target, options = {}) => {
     const nextRoute = parseRoute(target);
     const nextUrl = `${nextRoute.pathname}${nextRoute.search}`;
@@ -78,7 +98,13 @@ function App() {
   let currentPage = null;
 
   if (route.pathname === ROUTE_LOGIN) {
-    currentPage = <LoginPage onLogin={() => navigate(ROUTE_TEMPLATES)} />;
+    currentPage = (
+      <LoginPage
+        onLogin={() => navigate(ROUTE_TEMPLATES)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
   }
 
   if (route.pathname === ROUTE_TEMPLATES) {
@@ -89,6 +115,8 @@ function App() {
           navigate(`${ROUTE_CREATE_TEMPLATE}?template=${templateId}`)
         }
         onLogout={() => navigate(ROUTE_LOGIN, { replace: true })}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     );
   }
@@ -99,6 +127,8 @@ function App() {
         selectedTemplateId={routeSearchParams.get("template")}
         onBack={() => navigate(ROUTE_TEMPLATES)}
         onLogout={() => navigate(ROUTE_LOGIN, { replace: true })}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     );
   }
@@ -109,8 +139,7 @@ function App() {
         token: {
           colorPrimary: "#2f6fed",
           borderRadius: 12,
-          fontFamily:
-            "Sora, IBM Plex Sans Thai, Segoe UI, Tahoma, Geneva, Verdana, sans-serif"
+          fontFamily: "Nunito, Anuphan, sans-serif"
         }
       }}
     >

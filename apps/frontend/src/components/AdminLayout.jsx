@@ -1,4 +1,11 @@
-function AdminLayout({ breadcrumbs, onLogout, onBack, children }) {
+function AdminLayout({
+  breadcrumbs,
+  onLogout,
+  onBack,
+  theme,
+  onToggleTheme,
+  children
+}) {
   return (
     <div className="admin-shell">
       <div className="admin-aurora admin-aurora-left" />
@@ -12,8 +19,8 @@ function AdminLayout({ breadcrumbs, onLogout, onBack, children }) {
                 className="icon-only-button icon-neutral-button admin-back-button"
                 type="button"
                 onClick={onBack}
-                title="Back"
-                aria-label="Back"
+                title="ย้อนกลับ"
+                aria-label="ย้อนกลับ"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true" className="question-action-icon">
                   <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.9" />
@@ -22,9 +29,22 @@ function AdminLayout({ breadcrumbs, onLogout, onBack, children }) {
             ) : null}
             <p className="admin-breadcrumb">{breadcrumbs.join(" / ")}</p>
           </div>
-          <button className="text-button" type="button" onClick={onLogout}>
-            Logout
-          </button>
+          <div className="admin-topbar-actions">
+            <button
+              className="theme-toggle"
+              type="button"
+              onClick={onToggleTheme}
+              aria-pressed={theme === "dark"}
+            >
+              <span className="theme-toggle-label">ธีม</span>
+              <span className="theme-toggle-value">
+                {theme === "dark" ? "มืด" : "สว่าง"}
+              </span>
+            </button>
+            <button className="text-button" type="button" onClick={onLogout}>
+              ออกจากระบบ
+            </button>
+          </div>
         </header>
 
         <section className="admin-content">{children}</section>

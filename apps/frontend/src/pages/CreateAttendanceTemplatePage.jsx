@@ -58,7 +58,7 @@ const normalizeRatingSettings = (settings) => {
 };
 
 const createChoiceOption = (index) => {
-  const optionLabel = `Option ${index + 1}`;
+  const optionLabel = `ตัวเลือก ${index + 1}`;
   return {
     id: createClientId("opt"),
     option_label: optionLabel,
@@ -153,7 +153,7 @@ const normalizeField = (field, index) => {
       inputOptions.length > 0
         ? inputOptions.map((option, optionIndex) => ({
           id: option.id || createClientId("opt"),
-          option_label: option.option_label || `Option ${optionIndex + 1}`,
+          option_label: option.option_label || `ตัวเลือก ${optionIndex + 1}`,
           option_value:
             option.option_value ||
             toOptionValue(option.option_label, optionIndex),
@@ -198,13 +198,19 @@ const createInitialDraft = (templateId) => {
     allow_multiple_submissions: false,
     start_at: "",
     end_at: "",
-    success_title: "Submission completed",
-    success_message: "Thank you. Your response has been recorded.",
+    success_title: "ส่งแบบฟอร์มสำเร็จ",
+    success_message: "ขอบคุณ ระบบได้บันทึกคำตอบของคุณเรียบร้อยแล้ว",
     fields: [createField("short_text", 1)]
   };
 };
 
-function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) {
+function CreateAttendanceTemplatePage({
+  selectedTemplateId,
+  onBack,
+  onLogout,
+  theme,
+  onToggleTheme
+}) {
   const initialState = useMemo(() => {
     const initialDraft = createInitialDraft(selectedTemplateId);
     return {
@@ -294,8 +300,8 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
         id: createClientId("fld"),
         field_code: `${source.field_code}_copy`,
         field_label: source.field_label
-          ? `${source.field_label} (copy)`
-          : "Untitled question",
+          ? `${source.field_label} (สำเนา)`
+          : "คำถามใหม่",
         settings_json: { ...source.settings_json },
         options: sequenceOptions(
           (source.options || []).map((option) => ({
@@ -464,11 +470,11 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
   const handleSave = (targetStatus) => {
     updateFormValue("status", targetStatus);
     if (targetStatus === "published") {
-      setBannerText("Form published. Your team can now use this template.");
+      setBannerText("เผยแพร่แบบฟอร์มแล้ว ทีมงานสามารถเริ่มใช้งานเทมเพลตนี้ได้ทันที");
       return;
     }
 
-    setBannerText("Draft saved. You can continue editing anytime.");
+    setBannerText("บันทึกฉบับร่างแล้ว คุณสามารถกลับมาแก้ไขต่อได้ทุกเมื่อ");
   };
 
   const renderFieldPreviewInput = (field) => {
@@ -476,7 +482,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
       return (
         <input
           className="input-control"
-          placeholder={field.placeholder || "Short answer text"}
+          placeholder={field.placeholder || "คำตอบสั้น"}
           disabled
         />
       );
@@ -487,7 +493,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
         <textarea
           className="textarea-control"
           rows={3}
-          placeholder={field.placeholder || "Long answer text"}
+          placeholder={field.placeholder || "คำตอบยาว"}
           disabled
         />
       );
@@ -499,13 +505,13 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
           {field.options.map((option) => (
             <label key={option.id}>
               <input type="radio" disabled />
-              <span>{option.option_label || "Option"}</span>
+              <span>{option.option_label || "ตัวเลือก"}</span>
             </label>
           ))}
           {field.allow_other_option ? (
             <label>
               <input type="radio" disabled />
-              <span>Other</span>
+              <span>อื่นๆ</span>
             </label>
           ) : null}
         </div>
@@ -518,13 +524,13 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
           {field.options.map((option) => (
             <label key={option.id}>
               <input type="checkbox" disabled />
-              <span>{option.option_label || "Option"}</span>
+              <span>{option.option_label || "ตัวเลือก"}</span>
             </label>
           ))}
           {field.allow_other_option ? (
             <label>
               <input type="checkbox" disabled />
-              <span>Other</span>
+              <span>อื่นๆ</span>
             </label>
           ) : null}
         </div>
@@ -534,9 +540,9 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
     if (field.field_type === "dropdown") {
       return (
         <select className="select-control" disabled>
-          <option>Choose an option</option>
+          <option>เลือกคำตอบ</option>
           {field.options.map((option) => (
-            <option key={option.id}>{option.option_label || "Option"}</option>
+            <option key={option.id}>{option.option_label || "ตัวเลือก"}</option>
           ))}
         </select>
       );
@@ -573,21 +579,23 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
 
   return (
     <AdminLayout
-      breadcrumbs={["Admin", "Attendance Templates", "Create Attendance Template"]}
+      breadcrumbs={["แอดมิน", "เทมเพลตลงชื่อเข้าร่วม", "สร้างเทมเพลต"]}
       onLogout={onLogout}
       onBack={onBack}
+      theme={theme}
+      onToggleTheme={onToggleTheme}
     >
       <section className="builder-header builder-page-width">
         <div>
           <h1>
-            {editingTemplate ? "Edit Attendance Template" : "Create Attendance Template"}
+            {editingTemplate ? "แก้ไขเทมเพลตลงชื่อเข้าร่วม" : "สร้างเทมเพลตลงชื่อเข้าร่วม"}
           </h1>
           <p>
-            Build your form with a familiar Google Forms style experience.
+            สร้างแบบฟอร์มได้ง่ายในรูปแบบที่คุ้นเคย คล้าย Google Forms
           </p>
           {editingTemplate ? (
             <p className="editing-note">
-              Editing: {editingTemplate.form_name} ({editingTemplate.project_name})
+              กำลังแก้ไข: {editingTemplate.form_name} ({editingTemplate.project_name})
             </p>
           ) : null}
         </div>
@@ -598,28 +606,28 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
             type="button"
             onClick={() => handleSave("draft")}
           >
-            Save draft
+            บันทึกฉบับร่าง
           </button>
           <button
             className="primary-button"
             type="button"
             onClick={() => handleSave("published")}
           >
-            Publish template
+            เผยแพร่เทมเพลต
           </button>
         </div>
       </section>
 
       {bannerText ? <p className="notice-banner builder-page-width">{bannerText}</p> : null}
 
-      <nav className="builder-tabs builder-page-width" aria-label="Form builder tabs">
+      <nav className="builder-tabs builder-page-width" aria-label="แท็บจัดการแบบฟอร์ม">
         <button
           className={`builder-tab-button${activeTab === "details" ? " builder-tab-button-active" : ""
             }`}
           type="button"
           onClick={() => setActiveTab("details")}
         >
-          Form Details
+          รายละเอียดแบบฟอร์ม
         </button>
         <button
           className={`builder-tab-button${activeTab === "questions" ? " builder-tab-button-active" : ""
@@ -627,16 +635,16 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
           type="button"
           onClick={() => setActiveTab("questions")}
         >
-          Questions
+          คำถาม
         </button>
       </nav>
 
       {activeTab === "details" ? <section className="builder-meta-card builder-page-width page-enter">
-        <h2>Form Details</h2>
+        <h2>รายละเอียดแบบฟอร์ม</h2>
 
         <div className="builder-meta-grid">
           <label>
-            <span>Project</span>
+            <span>โครงการ</span>
             <select
               className="select-control"
               value={draft.project_id}
@@ -653,22 +661,22 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
           </label>
 
           <label>
-            <span>Form name</span>
+            <span>ชื่อแบบฟอร์ม</span>
             <input
               className="input-control"
               value={draft.form_name}
-              placeholder="Form title"
+              placeholder="เช่น ฟอร์มลงทะเบียนกิจกรรม"
               onChange={(event) => updateFormValue("form_name", event.target.value)}
             />
           </label>
 
           <label className="full-width">
-            <span>Form description</span>
+            <span>คำอธิบายแบบฟอร์ม</span>
             <textarea
               className="textarea-control"
               rows={3}
               value={draft.form_description}
-              placeholder="Describe this form for respondents"
+              placeholder="อธิบายสั้นๆ เพื่อให้ผู้ตอบเข้าใจแบบฟอร์มนี้"
               onChange={(event) =>
                 updateFormValue("form_description", event.target.value)
               }
@@ -676,12 +684,12 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
           </label>
 
           <label>
-            <span>Form link</span>
+            <span>ลิงก์แบบฟอร์ม</span>
             <div className="inline-input-action">
               <input
                 className="input-control"
                 value={draft.public_path}
-                placeholder="your-form-link"
+                placeholder="ลิงก์ของแบบฟอร์ม"
                 onChange={(event) =>
                   updateFormValue("public_path", event.target.value)
                 }
@@ -693,13 +701,13 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                   updateFormValue("public_path", toSlug(draft.form_name || ""))
                 }
               >
-                Auto
+                สร้างอัตโนมัติ
               </button>
             </div>
           </label>
 
           <label>
-            <span>Form type</span>
+            <span>ประเภทแบบฟอร์ม</span>
             <select
               className="select-control"
               value={draft.form_type}
@@ -714,7 +722,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
           </label>
 
           <label>
-            <span>Status</span>
+            <span>สถานะ</span>
             <select
               className="select-control"
               value={draft.status}
@@ -736,11 +744,11 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                 updateFormValue("allow_multiple_submissions", event.target.checked)
               }
             />
-            <span>Allow multiple responses</span>
+            <span>อนุญาตให้ตอบได้หลายครั้ง</span>
           </label>
 
           <label>
-            <span>Start at</span>
+            <span>เริ่มใช้งาน</span>
             <input
               className="input-control"
               type="datetime-local"
@@ -750,7 +758,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
           </label>
 
           <label>
-            <span>End at</span>
+            <span>สิ้นสุดการใช้งาน</span>
             <input
               className="input-control"
               type="datetime-local"
@@ -760,7 +768,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
           </label>
 
           <label>
-            <span>Confirmation title</span>
+            <span>หัวข้อข้อความยืนยัน</span>
             <input
               className="input-control"
               value={draft.success_title}
@@ -771,7 +779,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
           </label>
 
           <label className="full-width">
-            <span>Confirmation message</span>
+            <span>ข้อความยืนยัน</span>
             <textarea
               className="textarea-control"
               rows={3}
@@ -787,14 +795,14 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
       {activeTab === "questions" ? (
         <section className="questions-tab-shell builder-page-width page-enter">
           <div className="section-head">
-            <h2>{showPreview ? "Form Preview" : `Questions (${draft.fields.length})`}</h2>
+            <h2>{showPreview ? "ตัวอย่างแบบฟอร์ม" : `คำถาม (${draft.fields.length})`}</h2>
             <div className="section-head-actions">
               <button
                 className="ghost-button"
                 type="button"
                 onClick={() => setShowPreview((current) => !current)}
               >
-                {showPreview ? "Back to editing" : "Show preview"}
+                {showPreview ? "กลับไปแก้ไข" : "ดูตัวอย่าง"}
               </button>
               {!showPreview ? (
                 <button
@@ -802,7 +810,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                   type="button"
                   onClick={() => addField("short_text")}
                 >
-                  + Add question
+                  + เพิ่มคำถาม
                 </button>
               ) : null}
             </div>
@@ -813,15 +821,15 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
               <article className="google-preview-form-card">
                 <div className="google-preview-form-accent" />
                 <div className="google-preview-form-body">
-                  <h3>{draft.form_name || "Untitled form"}</h3>
-                  <p>{draft.form_description || "Form description"}</p>
+                  <h3>{draft.form_name || "แบบฟอร์มใหม่"}</h3>
+                  <p>{draft.form_description || "คำอธิบายแบบฟอร์ม"}</p>
                 </div>
               </article>
 
               {draft.fields.map((field, fieldIndex) => (
                 <article key={field.id} className="google-preview-question-card">
                   <p className="google-preview-question-title">
-                    {field.field_label || `Question ${fieldIndex + 1}`}
+                    {field.field_label || `คำถาม ${fieldIndex + 1}`}
                     {field.is_required ? <span className="required-mark">*</span> : null}
                   </p>
 
@@ -835,17 +843,17 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
             <div className="builder-editor-panel">
               <article className="question-form-summary">
                 <p className="question-form-summary-title">
-                  {draft.form_name || "Untitled form"}
+                  {draft.form_name || "แบบฟอร์มใหม่"}
                 </p>
                 <p className="question-form-summary-desc">
-                  {draft.form_description || "No description yet."}
+                  {draft.form_description || "ยังไม่มีคำอธิบาย"}
                 </p>
                 <button
                   className="text-button"
                   type="button"
                   onClick={() => setActiveTab("details")}
                 >
-                  Edit form details
+                  แก้ไขรายละเอียดแบบฟอร์ม
                 </button>
               </article>
 
@@ -865,8 +873,8 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                       draggable
                       onDragStart={(event) => handleFieldDragStart(event, field.id)}
                       onDragEnd={handleFieldDragEnd}
-                      title="Drag to reorder"
-                      aria-label="Drag to reorder"
+                      title="ลากเพื่อจัดลำดับ"
+                      aria-label="ลากเพื่อจัดลำดับ"
                     >
                       <span />
                       <span />
@@ -882,7 +890,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                       <input
                         className="question-title-input"
                         value={field.field_label}
-                        placeholder={`Question ${fieldIndex + 1}`}
+                        placeholder={`คำถาม ${fieldIndex + 1}`}
                         onChange={(event) =>
                           updateField(field.id, (currentField) => ({
                             ...currentField,
@@ -915,7 +923,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                         className="question-desc-input"
                         rows={1}
                         value={field.field_description}
-                        placeholder="Description (optional)"
+                        placeholder="คำอธิบาย (ถ้ามี)"
                         onChange={(event) =>
                           updateField(field.id, (currentField) => ({
                             ...currentField,
@@ -933,12 +941,12 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                     {field.field_type === "short_text" ? (
                       activeFieldId === field.id ? (
                         <label style={{ marginTop: 12 }}>
-                          <span style={{ fontSize: "0.82rem", color: "#5f6368", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 500 }}>Placeholder</span>
+                          <span style={{ fontSize: "0.82rem", color: "#5f6368", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 500 }}>ข้อความตัวอย่าง</span>
                           <input
                             className="question-title-input"
                             style={{ fontSize: "0.92rem" }}
                             value={field.placeholder}
-                            placeholder="Short answer text"
+                            placeholder="คำตอบสั้น"
                             onChange={(event) =>
                               updateField(field.id, (currentField) => ({
                                 ...currentField,
@@ -949,7 +957,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                         </label>
                       ) : (
                         <div className="question-placeholder-field" style={{ marginTop: 16 }}>
-                          {field.placeholder || "Short answer text"}
+                          {field.placeholder || "คำตอบสั้น"}
                         </div>
                       )
                     ) : null}
@@ -957,12 +965,12 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                     {field.field_type === "long_text" ? (
                       activeFieldId === field.id ? (
                         <label style={{ marginTop: 12 }}>
-                          <span style={{ fontSize: "0.82rem", color: "#5f6368", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 500 }}>Placeholder</span>
+                          <span style={{ fontSize: "0.82rem", color: "#5f6368", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 500 }}>ข้อความตัวอย่าง</span>
                           <input
                             className="question-title-input"
                             style={{ fontSize: "0.92rem" }}
                             value={field.placeholder}
-                            placeholder="Long answer text"
+                            placeholder="คำตอบยาว"
                             onChange={(event) =>
                               updateField(field.id, (currentField) => ({
                                 ...currentField,
@@ -973,7 +981,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                         </label>
                       ) : (
                         <div className="question-placeholder-field" style={{ marginTop: 16, borderBottomStyle: "dotted" }}>
-                          {field.placeholder || "Long answer text"}
+                          {field.placeholder || "คำตอบยาว"}
                         </div>
                       )
                     ) : null}
@@ -993,7 +1001,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                             <input
                               className="choice-option-input"
                               value={option.option_label}
-                              placeholder={`Option ${optionIndex + 1}`}
+                              placeholder={`ตัวเลือก ${optionIndex + 1}`}
                               onChange={(event) =>
                                 updateOptionLabel(
                                   field.id,
@@ -1007,8 +1015,8 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                               type="button"
                               onClick={() => removeOption(field.id, option.id)}
                               disabled={field.options.length <= 1}
-                              title="Remove option"
-                              aria-label="Remove option"
+                              title="ลบตัวเลือก"
+                              aria-label="ลบตัวเลือก"
                             >
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                                 <path d="M18 6L6 18M6 6l12 12" />
@@ -1031,7 +1039,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                             type="button"
                             onClick={() => addOption(field.id)}
                           >
-                            Add option
+                            เพิ่มตัวเลือก
                           </button>
                         </div>
 
@@ -1049,7 +1057,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                                   }))
                                 }
                               />
-                              <span>Add "Other" option</span>
+                              <span>เพิ่มตัวเลือก "อื่นๆ"</span>
                             </label>
                           </div>
                         ) : null}
@@ -1067,7 +1075,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                         </div>
                         <div className="inline-two-cols">
                           <label>
-                            <span>Min rating</span>
+                            <span>คะแนนต่ำสุด</span>
                             <select
                               className="select-control"
                               value={field.settings_json.rating_min || 1}
@@ -1091,7 +1099,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                             </select>
                           </label>
                           <label>
-                            <span>Max rating</span>
+                            <span>คะแนนสูงสุด</span>
                             <select
                               className="select-control"
                               value={field.settings_json.rating_max || 5}
@@ -1121,13 +1129,13 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                     {/* Date / Time placeholder preview */}
                     {field.field_type === "date" ? (
                       <div className="question-placeholder-field" style={{ marginTop: 16 }}>
-                        Month, day, year
+                        วัน / เดือน / ปี
                       </div>
                     ) : null}
 
                     {field.field_type === "time" ? (
                       <div className="question-placeholder-field" style={{ marginTop: 16 }}>
-                        Time
+                        เวลา
                       </div>
                     ) : null}
 
@@ -1145,7 +1153,7 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                           }
                         />
                         <span className="question-switch-slider" />
-                        <span className="question-switch-text">Required</span>
+                        <span className="question-switch-text">บังคับตอบ</span>
                       </label>
 
                       <span className="question-footer-divider" />
@@ -1155,8 +1163,8 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                           className="icon-only-button icon-neutral-button"
                           type="button"
                           onClick={() => duplicateField(field.id)}
-                          title="Duplicate question"
-                          aria-label="Duplicate question"
+                          title="ทำสำเนาคำถาม"
+                          aria-label="ทำสำเนาคำถาม"
                         >
                           <svg viewBox="0 0 24 24" aria-hidden="true" className="question-action-icon">
                             <rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" />
@@ -1167,8 +1175,8 @@ function CreateAttendanceTemplatePage({ selectedTemplateId, onBack, onLogout }) 
                           className="icon-only-button icon-danger-button"
                           type="button"
                           onClick={() => removeField(field.id)}
-                          title="Delete question"
-                          aria-label="Delete question"
+                          title="ลบคำถาม"
+                          aria-label="ลบคำถาม"
                         >
                           <svg viewBox="0 0 24 24" aria-hidden="true" className="question-action-icon">
                             <path d="M4 7h16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />

@@ -6,20 +6,26 @@ const PAGE_SIZE = 10;
 
 const STATUS_META = {
   published: {
-    label: "Active",
+    label: "เปิดใช้งาน",
     className: "status-pill status-pill-active"
   },
   draft: {
-    label: "Draft",
+    label: "ฉบับร่าง",
     className: "status-pill status-pill-draft"
   },
   closed: {
-    label: "Inactive",
+    label: "ปิดใช้งาน",
     className: "status-pill status-pill-inactive"
   }
 };
 
-function AttendanceTemplatesPage({ onCreateTemplate, onEditTemplate, onLogout }) {
+function AttendanceTemplatesPage({
+  onCreateTemplate,
+  onEditTemplate,
+  onLogout,
+  theme,
+  onToggleTheme
+}) {
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(1);
 
@@ -59,13 +65,15 @@ function AttendanceTemplatesPage({ onCreateTemplate, onEditTemplate, onLogout })
 
   return (
     <AdminLayout
-      breadcrumbs={["Admin", "Attendance Templates"]}
+      breadcrumbs={["แอดมิน", "เทมเพลตลงชื่อเข้าร่วม"]}
       onLogout={onLogout}
+      theme={theme}
+      onToggleTheme={onToggleTheme}
     >
       <section className="templates-head">
-        <h1>Attendance Templates</h1>
+        <h1>เทมเพลตลงชื่อเข้าร่วม</h1>
         <button className="primary-button" type="button" onClick={onCreateTemplate}>
-          Create Att Template
+          สร้างเทมเพลต
         </button>
       </section>
 
@@ -75,7 +83,7 @@ function AttendanceTemplatesPage({ onCreateTemplate, onEditTemplate, onLogout })
             className="input-control templates-search"
             type="text"
             value={searchText}
-            placeholder="Search templates"
+            placeholder="ค้นหาเทมเพลต"
             onChange={handleSearch}
           />
         </div>
@@ -85,16 +93,16 @@ function AttendanceTemplatesPage({ onCreateTemplate, onEditTemplate, onLogout })
             <thead>
               <tr>
                 <th>#</th>
-                <th>Template URL</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th>ลิงก์แบบฟอร์ม</th>
+                <th>สถานะ</th>
+                <th>การจัดการ</th>
               </tr>
             </thead>
             <tbody>
               {pagedTemplates.length === 0 ? (
                 <tr>
                   <td className="empty-row" colSpan={4}>
-                    No template found.
+                    ไม่พบเทมเพลต
                   </td>
                 </tr>
               ) : (
@@ -119,7 +127,7 @@ function AttendanceTemplatesPage({ onCreateTemplate, onEditTemplate, onLogout })
                           type="button"
                           onClick={() => onEditTemplate(template.form_id)}
                         >
-                          Edit
+                          แก้ไข
                         </button>
                       </td>
                     </tr>
@@ -132,7 +140,7 @@ function AttendanceTemplatesPage({ onCreateTemplate, onEditTemplate, onLogout })
 
         <footer className="templates-footer">
           <p>
-            Showing {showingStart} to {showingEnd} of {totalRows} results
+            แสดง {showingStart} ถึง {showingEnd} จากทั้งหมด {totalRows} รายการ
           </p>
 
           <div className="pagination-actions">
@@ -142,7 +150,7 @@ function AttendanceTemplatesPage({ onCreateTemplate, onEditTemplate, onLogout })
               onClick={() => setPage((current) => Math.max(1, current - 1))}
               disabled={normalizedPage <= 1}
             >
-              Previous
+              ก่อนหน้า
             </button>
             <span className="pagination-current">{normalizedPage}</span>
             <button
@@ -153,7 +161,7 @@ function AttendanceTemplatesPage({ onCreateTemplate, onEditTemplate, onLogout })
               }
               disabled={normalizedPage >= totalPages}
             >
-              Next
+              ถัดไป
             </button>
           </div>
         </footer>
