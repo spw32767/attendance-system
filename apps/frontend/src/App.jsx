@@ -1,43 +1,121 @@
-import { Button, Card, Layout, Space, Typography } from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { ConfigProvider } from "antd";
+import AttendanceTemplatesPage from "./pages/AttendanceTemplatesPage";
+import CreateAttendanceTemplatePage from "./pages/CreateAttendanceTemplatePage";
+import LoginPage from "./pages/LoginPage";
 
-const { Header, Content } = Layout;
-const { Title, Paragraph, Text } = Typography;
+const ROUTE_LOGIN = "/login";
+const ROUTE_TEMPLATES = "/admin/templates";
+const ROUTE_CREATE_TEMPLATE = "/admin/templates/create";
+
+const normalizePathname = (pathname) => {
+  if (!pathname || pathname === "/") {
+    return ROUTE_LOGIN;
+  }
+
+  if (pathname.startsWith(ROUTE_CREATE_TEMPLATE)) {
+    return ROUTE_CREATE_TEMPLATE;
+  }
+
+  if (pathname.startsWith(ROUTE_TEMPLATES)) {
+    return ROUTE_TEMPLATES;
+  }
+
+  if (pathname.startsWith(ROUTE_LOGIN)) {
+    return ROUTE_LOGIN;
+  }
+
+  return ROUTE_LOGIN;
+};
+
+const parseRoute = (target) => {
+  const url = new URL(target, window.location.origin);
+  return {
+    pathname: normalizePathname(url.pathname),
+    search: url.search
+  };
+};
 
 function App() {
+  const [route, setRoute] = useState(() => parseRoute(window.location.href));
+
+  useEffect(() => {
+    const normalized = parseRoute(window.location.href);
+    const expectedUrl = `${normalized.pathname}${normalized.search}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+    if (expectedUrl !== currentUrl) {
+      window.history.replaceState({}, "", expectedUrl);
+      setRoute(normalized);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onPopState = () => {
+      setRoute(parseRoute(window.location.href));
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  const navigate = (target, options = {}) => {
+    const nextRoute = parseRoute(target);
+    const nextUrl = `${nextRoute.pathname}${nextRoute.search}`;
+    const method = options.replace ? "replaceState" : "pushState";
+
+    window.history[method]({}, "", nextUrl);
+    setRoute(nextRoute);
+  };
+
+  const routeSearchParams = useMemo(
+    () => new URLSearchParams(route.search),
+    [route.search]
+  );
+
+  let currentPage = null;
+
+  if (route.pathname === ROUTE_LOGIN) {
+    currentPage = <LoginPage onLogin={() => navigate(ROUTE_TEMPLATES)} />;
+  }
+
+  if (route.pathname === ROUTE_TEMPLATES) {
+    currentPage = (
+      <AttendanceTemplatesPage
+        onCreateTemplate={() => navigate(ROUTE_CREATE_TEMPLATE)}
+        onEditTemplate={(templateId) =>
+          navigate(`${ROUTE_CREATE_TEMPLATE}?template=${templateId}`)
+        }
+        onLogout={() => navigate(ROUTE_LOGIN, { replace: true })}
+      />
+    );
+  }
+
+  if (route.pathname === ROUTE_CREATE_TEMPLATE) {
+    currentPage = (
+      <CreateAttendanceTemplatePage
+        selectedTemplateId={routeSearchParams.get("template")}
+        onBack={() => navigate(ROUTE_TEMPLATES)}
+        onLogout={() => navigate(ROUTE_LOGIN, { replace: true })}
+      />
+    );
+  }
+
   return (
-    <Layout className="min-h-screen">
-      <Header className="!h-auto border-b border-slate-200 !bg-white px-6 py-4">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between">
-          <Title level={4} className="!m-0">
-            Attendance System
-          </Title>
-          <Space>
-            <Button>Docs</Button>
-            <Button type="primary">Login</Button>
-          </Space>
-        </div>
-      </Header>
-
-      <Content className="px-6 py-10">
-        <div className="mx-auto w-full max-w-5xl">
-          <Card className="shadow-sm">
-            <Title level={2}>Frontend Base Ready</Title>
-            <Paragraph className="!mb-2">
-              Stack: React + Vite, Tailwind CSS, and Ant Design.
-            </Paragraph>
-            <Paragraph>
-              Start editing <Text code>apps/frontend/src/App.jsx</Text> to build
-              your pages.
-            </Paragraph>
-
-            <Space>
-              <Button type="primary">Create attendance page</Button>
-              <Button>View component guide</Button>
-            </Space>
-          </Card>
-        </div>
-      </Content>
-    </Layout>
+    <ConfigProvider
+      theme={{
+        token: {
+          colorPrimary: "#2f6fed",
+          borderRadius: 12,
+          fontFamily:
+            "Sora, IBM Plex Sans Thai, Segoe UI, Tahoma, Geneva, Verdana, sans-serif"
+        }
+      }}
+    >
+      {currentPage}
+    </ConfigProvider>
   );
 }
 
