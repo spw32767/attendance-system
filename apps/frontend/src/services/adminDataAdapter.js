@@ -5,11 +5,13 @@ const provider = mockAdminService;
 export const adminDataAdapter = {
   listProjects: (...args) => provider.listProjects(...args),
   upsertProject: (...args) => provider.upsertProject(...args),
+  setProjectUsage: (...args) => provider.setProjectUsage(...args),
 
   listForms: (...args) => provider.listForms(...args),
   listFormsByProject: (...args) => provider.listFormsByProject(...args),
   getFormDraft: (...args) => provider.getFormDraft(...args),
   saveFormDraft: (...args) => provider.saveFormDraft(...args),
+  setFormUsage: (...args) => provider.setFormUsage(...args),
 
   listSubmissions: (...args) => provider.listSubmissions(...args),
   getSubmissionDetail: (...args) => provider.getSubmissionDetail(...args),

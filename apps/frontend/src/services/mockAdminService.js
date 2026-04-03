@@ -408,6 +408,37 @@ export const mockAdminService = {
     return clone({ formId: String(resolvedFormId) });
   },
 
+  async setProjectUsage(projectId, isActive) {
+    state.projects = state.projects.map((project) =>
+      Number(project.project_id) === Number(projectId)
+        ? {
+            ...project,
+            is_active: Boolean(isActive)
+          }
+        : project
+    );
+  },
+
+  async setFormUsage(formId, isEnabled) {
+    const nextStatus = isEnabled ? "published" : "closed";
+
+    state.forms = state.forms.map((form) =>
+      String(form.form_id) === String(formId)
+        ? {
+            ...form,
+            status: nextStatus
+          }
+        : form
+    );
+
+    if (state.formDrafts[String(formId)]) {
+      state.formDrafts[String(formId)] = {
+        ...state.formDrafts[String(formId)],
+        status: nextStatus
+      };
+    }
+  },
+
   async listSubmissions() {
     return clone(
       state.submissions.map((submission) => {

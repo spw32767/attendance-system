@@ -365,8 +365,12 @@ function App() {
       return "items";
     }
 
-    if (route.id === ROUTE_ID_CLAIMS || route.id === ROUTE_ID_SCANNER_CLAIMS) {
+    if (route.id === ROUTE_ID_CLAIMS) {
       return "claims";
+    }
+
+    if (route.id === ROUTE_ID_SCANNER_CLAIMS) {
+      return "scanner";
     }
 
     if (route.id === ROUTE_ID_EMAIL) {
@@ -384,98 +388,94 @@ function App() {
     return route.id === ROUTE_ID_DASHBOARD ? "dashboard" : "";
   }, [route.id]);
 
-  const adminNavItems = useMemo(
-    () => [
+  const adminNavItems = useMemo(() => {
+    const allItems = [
       {
+        routeKey: ROUTE_ID_DASHBOARD,
         path: PATH_DASHBOARD,
         label: "แดชบอร์ด",
+        icon: "dashboard",
+        group: "ภาพรวม",
         isActive: activeNavKey === "dashboard"
       },
       {
+        routeKey: ROUTE_ID_PROJECTS,
         path: PATH_PROJECTS,
         label: "โครงการ",
+        icon: "projects",
+        group: "การตั้งค่าแบบฟอร์ม",
         isActive: activeNavKey === "projects"
       },
       {
+        routeKey: ROUTE_ID_FORM_EDITOR,
         path: firstProjectFormsPath,
         label: "ฟอร์ม",
+        icon: "forms",
+        group: "การตั้งค่าแบบฟอร์ม",
         isActive: activeNavKey === "forms"
       },
       {
+        routeKey: ROUTE_ID_SUBMISSIONS,
         path: PATH_SUBMISSIONS,
         label: "คำตอบ",
+        icon: "submissions",
+        group: "การปฏิบัติการ",
         isActive: activeNavKey === "submissions"
       },
       {
+        routeKey: ROUTE_ID_ITEMS,
         path: PATH_ITEMS,
         label: "รายการของ",
+        icon: "items",
+        group: "การปฏิบัติการ",
         isActive: activeNavKey === "items"
       },
       {
+        routeKey: ROUTE_ID_CLAIMS,
         path: PATH_CLAIMS,
         label: "สิทธิ์รับของ",
+        icon: "claims",
+        group: "การปฏิบัติการ",
         isActive: activeNavKey === "claims"
       },
       {
+        routeKey: ROUTE_ID_SCANNER_CLAIMS,
+        path: PATH_SCANNER_CLAIMS,
+        label: "สแกนรับของ",
+        icon: "scanner",
+        group: "การปฏิบัติการ",
+        isActive: activeNavKey === "scanner"
+      },
+      {
+        routeKey: ROUTE_ID_EMAIL,
         path: PATH_EMAIL,
         label: "อีเมล",
+        icon: "email",
+        group: "การปฏิบัติการ",
         isActive: activeNavKey === "email"
       },
       {
+        routeKey: ROUTE_ID_USERS,
         path: PATH_USERS,
         label: "ผู้ใช้งาน",
+        icon: "users",
+        group: "ผู้ดูแลระบบ",
         isActive: activeNavKey === "users"
       },
       {
+        routeKey: ROUTE_ID_LOGIN_LOGS,
         path: PATH_LOGIN_LOGS,
         label: "ประวัติเข้าใช้",
+        icon: "logs",
+        group: "ผู้ดูแลระบบ",
         isActive: activeNavKey === "login-logs"
       }
-    ],
-    [activeNavKey, firstProjectFormsPath]
-  );
+    ];
 
-  const dashboardLinks = useMemo(
-    () => [
-      {
-        title: "จัดการโครงการ",
-        description: "สร้างโครงการหลัก และเป็นจุดเริ่มต้นก่อนสร้างฟอร์ม",
-        actionLabel: "ไปหน้าโครงการ",
-        path: PATH_PROJECTS
-      },
-      {
-        title: "จัดการฟอร์ม",
-        description: "ดูฟอร์มตามโครงการ แก้ไขคำถาม และตั้งค่าการใช้งาน",
-        actionLabel: "ไปหน้าฟอร์ม",
-        path: firstProjectFormsPath
-      },
-      {
-        title: "คำตอบและการเข้าร่วม",
-        description: "ดูคำตอบที่ส่งเข้ามาและตรวจสอบสถานะ attendance",
-        actionLabel: "ไปหน้าคำตอบ",
-        path: PATH_SUBMISSIONS
-      },
-      {
-        title: "ของและสิทธิ์รับของ",
-        description: "กำหนดรายการของ พร้อมติดตามสิทธิ์และสถานะการรับ",
-        actionLabel: "ไปหน้าสิทธิ์รับของ",
-        path: PATH_CLAIMS
-      },
-      {
-        title: "อีเมลแจ้งเตือน",
-        description: "ตั้งค่าเทมเพลตอีเมลและเช็กประวัติการส่ง",
-        actionLabel: "ไปหน้าอีเมล",
-        path: PATH_EMAIL
-      },
-      {
-        title: "สแกนเนอร์รับของ",
-        description: "หน้าสแกน QR token สำหรับยืนยันการรับของ",
-        actionLabel: "ไปหน้าสแกน",
-        path: PATH_SCANNER_CLAIMS
-      }
-    ],
-    [firstProjectFormsPath]
-  );
+    return allItems.filter((item) =>
+      (ROUTE_PERMISSION_GROUP[item.routeKey] || ["admin"]).includes(currentRole)
+    );
+  }, [activeNavKey, currentRole, firstProjectFormsPath, route.id]);
 
   const handleCreateProject = () => {
     navigate(PATH_PROJECT_CREATE);
@@ -607,6 +607,18 @@ function App() {
     setSubmissionDetail(nextDetail);
   };
 
+  const handleToggleProjectUsage = async (projectId, isActive) => {
+    await adminDataAdapter.setProjectUsage(projectId, isActive);
+    const [nextProjects] = await Promise.all([adminDataAdapter.listProjects()]);
+    setProjects(nextProjects);
+  };
+
+  const handleToggleFormUsage = async (formId, isEnabled) => {
+    await adminDataAdapter.setFormUsage(formId, isEnabled);
+    const [nextForms] = await Promise.all([adminDataAdapter.listForms()]);
+    setForms(nextForms);
+  };
+
   const handleLoadPublicForm = async (publicPath) =>
     adminDataAdapter.getPublicForm(publicPath);
 
@@ -665,7 +677,14 @@ function App() {
         onNavigate={navigate}
         currentRole={currentRole}
         onRoleChange={setCurrentRole}
-        quickLinks={dashboardLinks}
+        projects={projectsWithLabel}
+        forms={formsWithProjectName}
+        onToggleProjectUsage={handleToggleProjectUsage}
+        onToggleFormUsage={handleToggleFormUsage}
+        onOpenProjectForms={(projectId) => navigate(toProjectFormsPath(projectId))}
+        onOpenFormEditor={(projectId, formId) =>
+          navigate(`${PATH_FORM_EDITOR}?project=${projectId}&template=${formId}`)
+        }
       />
     );
   }
