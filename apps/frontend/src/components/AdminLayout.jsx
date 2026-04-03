@@ -271,7 +271,7 @@ function AdminLayout({
       <div className="admin-aurora admin-aurora-left" />
       <div className="admin-aurora admin-aurora-right" />
 
-      <main className="admin-frame page-enter">
+      <main className="admin-frame">
         <header className="admin-topbar">
           <div className="admin-topbar-left">
             {onBack ? (
