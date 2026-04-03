@@ -19,7 +19,8 @@ export const FIELD_TYPES = [
   { value: "dropdown", label: "รายการแบบเลื่อนลง" },
   { value: "rating", label: "ให้คะแนน" },
   { value: "date", label: "วันที่" },
-  { value: "time", label: "เวลา" }
+  { value: "time", label: "เวลา" },
+  { value: "file_upload", label: "อัปโหลดไฟล์" }
 ];
 
 export const FIELD_USAGES = [

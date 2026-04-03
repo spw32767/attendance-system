@@ -2,15 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../components/AdminLayout";
 import {
   CHOICE_FIELD_TYPES,
+  FIELD_USAGES,
   FIELD_TYPES,
   FORM_STATUSES,
   FORM_TYPES
 } from "../constants/formBuilder";
-import {
-  getTemplateById,
-  getTemplateDraftById,
-  projectOptions
-} from "../mock/templates";
 
 let idCounter = 0;
 
@@ -38,6 +34,21 @@ const toOptionValue = (value, index) => {
 };
 
 const isChoiceType = (fieldType) => CHOICE_FIELD_TYPES.has(fieldType);
+const supportsUniqueValue = (fieldType) =>
+  ["short_text", "long_text", "date", "time"].includes(fieldType);
+const supportsPlaceholder = (fieldType) =>
+  ["short_text", "long_text"].includes(fieldType);
+
+const normalizeFileSettings = (settings) => {
+  const maxSize = Number(settings?.max_file_size_mb || 10);
+  const maxCount = Number(settings?.max_file_count || 1);
+
+  return {
+    max_file_size_mb: Math.max(1, Math.min(maxSize, 50)),
+    max_file_count: Math.max(1, Math.min(maxCount, 5)),
+    allowed_file_types: settings?.allowed_file_types || "pdf,jpg,jpeg,png"
+  };
+};
 
 const sequenceOptions = (options = []) =>
   options.map((option, index) => ({
@@ -101,6 +112,13 @@ const createField = (fieldType = "short_text", sortOrder = 1) => {
     };
   }
 
+  if (fieldType === "file_upload") {
+    return {
+      ...baseField,
+      settings_json: normalizeFileSettings()
+    };
+  }
+
   return baseField;
 };
 
@@ -122,8 +140,18 @@ const applyFieldTypePreset = (field, fieldType) => {
 
   if (fieldType === "rating") {
     nextField.settings_json = normalizeRatingSettings(field.settings_json);
+  } else if (fieldType === "file_upload") {
+    nextField.settings_json = normalizeFileSettings(field.settings_json);
   } else {
     nextField.settings_json = {};
+  }
+
+  if (!supportsUniqueValue(fieldType)) {
+    nextField.is_unique_value = false;
+  }
+
+  if (!supportsPlaceholder(fieldType)) {
+    nextField.placeholder = "";
   }
 
   return nextField;
@@ -165,6 +193,8 @@ const normalizeField = (field, index) => {
 
   if (fieldType === "rating") {
     normalizedField.settings_json = normalizeRatingSettings(field.settings_json);
+  } else if (fieldType === "file_upload") {
+    normalizedField.settings_json = normalizeFileSettings(field.settings_json);
   }
 
   return normalizedField;
@@ -177,9 +207,11 @@ const resequenceFields = (fields) =>
     options: isChoiceType(field.field_type) ? sequenceOptions(field.options) : []
   }));
 
-const createInitialDraft = (templateId) => {
-  const existingDraft = getTemplateDraftById(templateId);
-
+const createInitialDraft = (
+  existingDraft,
+  defaultProjectId = null,
+  availableProjects = []
+) => {
   if (existingDraft) {
     return {
       ...existingDraft,
@@ -188,8 +220,11 @@ const createInitialDraft = (templateId) => {
     };
   }
 
+  const fallbackProjectId =
+    Number(defaultProjectId) || availableProjects[0]?.project_id || 1;
+
   return {
-    project_id: projectOptions[0]?.project_id || 1,
+    project_id: fallbackProjectId,
     form_name: "",
     form_description: "",
     public_path: "",
@@ -206,40 +241,63 @@ const createInitialDraft = (templateId) => {
 
 function CreateAttendanceTemplatePage({
   selectedTemplateId,
+  selectedProjectId,
+  projectRecords,
+  editingTemplate,
+  onLoadDraft,
+  onSaveForm,
   onBack,
   onLogout,
   theme,
-  onToggleTheme
+  onToggleTheme,
+  navItems,
+  activePath,
+  onNavigate
 }) {
-  const initialState = useMemo(() => {
-    const initialDraft = createInitialDraft(selectedTemplateId);
-    return {
-      draft: initialDraft,
-      activeFieldId: initialDraft.fields[0]?.id || null
-    };
-  }, []);
-
-  const [draft, setDraft] = useState(initialState.draft);
-  const [activeFieldId, setActiveFieldId] = useState(initialState.activeFieldId);
+  const availableProjects = useMemo(
+    () => projectRecords || [],
+    [projectRecords]
+  );
+  const [draft, setDraft] = useState(() =>
+    createInitialDraft(null, selectedProjectId, availableProjects)
+  );
+  const [activeFieldId, setActiveFieldId] = useState(null);
   const [activeTab, setActiveTab] = useState("details");
   const [showPreview, setShowPreview] = useState(false);
   const [draggingFieldId, setDraggingFieldId] = useState(null);
   const [dragOverFieldId, setDragOverFieldId] = useState(null);
   const [bannerText, setBannerText] = useState("");
 
-  const editingTemplate = useMemo(
-    () => getTemplateById(selectedTemplateId),
-    [selectedTemplateId]
+  const activeProject = useMemo(
+    () =>
+      availableProjects.find(
+        (project) => Number(project.project_id) === Number(draft.project_id)
+      ) || null,
+    [availableProjects, draft.project_id]
   );
 
   useEffect(() => {
-    const nextDraft = createInitialDraft(selectedTemplateId);
-    setDraft(nextDraft);
-    setActiveFieldId(nextDraft.fields[0]?.id || null);
-    setActiveTab("details");
-    setShowPreview(false);
-    setBannerText("");
-  }, [selectedTemplateId]);
+    const loadDraft = async () => {
+      const loadedDraft = await onLoadDraft(selectedTemplateId, selectedProjectId);
+      const nextDraft = createInitialDraft(
+        loadedDraft,
+        selectedProjectId,
+        availableProjects
+      );
+      setDraft(nextDraft);
+      setActiveFieldId(nextDraft.fields[0]?.id || null);
+      setActiveTab("details");
+      setShowPreview(false);
+      setBannerText("");
+    };
+
+    void loadDraft();
+  }, [
+    availableProjects,
+    onLoadDraft,
+    selectedProjectId,
+    selectedTemplateId
+  ]);
 
   useEffect(() => {
     if (!draft.fields.length) {
@@ -467,8 +525,27 @@ function CreateAttendanceTemplatePage({
     });
   };
 
-  const handleSave = (targetStatus) => {
-    updateFormValue("status", targetStatus);
+  const handleSave = async (targetStatus) => {
+    const payload = {
+      ...draft,
+      status: targetStatus
+    };
+
+    const saveResult = await onSaveForm(selectedTemplateId, payload, targetStatus);
+
+    if (!selectedTemplateId && saveResult?.formId) {
+      setBannerText("บันทึกแล้ว ระบบกำลังเปิดหน้าแก้ไขของฟอร์มที่สร้างใหม่");
+      onNavigate(
+        `/admin/forms/editor?project=${payload.project_id}&template=${saveResult.formId}`
+      );
+      return;
+    }
+
+    setDraft((current) => ({
+      ...current,
+      status: targetStatus
+    }));
+
     if (targetStatus === "published") {
       setBannerText("เผยแพร่แบบฟอร์มแล้ว ทีมงานสามารถเริ่มใช้งานเทมเพลตนี้ได้ทันที");
       return;
@@ -574,16 +651,36 @@ function CreateAttendanceTemplatePage({
       return <input className="input-control" type="time" disabled />;
     }
 
+    if (field.field_type === "file_upload") {
+      const maxFileCount = Number(field.settings_json?.max_file_count || 1);
+      return (
+        <div className="file-upload-preview">
+          <button className="ghost-button" type="button" disabled>
+            เลือกไฟล์
+          </button>
+          <small>อัปโหลดได้สูงสุด {maxFileCount} ไฟล์</small>
+        </div>
+      );
+    }
+
     return null;
   };
 
   return (
     <AdminLayout
-      breadcrumbs={["แอดมิน", "เทมเพลตลงชื่อเข้าร่วม", "สร้างเทมเพลต"]}
+      breadcrumbs={[
+        "แอดมิน",
+        "โครงการ",
+        activeProject?.project_name || "ฟอร์ม",
+        editingTemplate ? "แก้ไขฟอร์ม" : "สร้างฟอร์ม"
+      ]}
       onLogout={onLogout}
       onBack={onBack}
       theme={theme}
       onToggleTheme={onToggleTheme}
+      navItems={navItems}
+      activePath={activePath}
+      onNavigate={onNavigate}
     >
       <section className="builder-header builder-page-width">
         <div>
@@ -652,7 +749,7 @@ function CreateAttendanceTemplatePage({
                 updateFormValue("project_id", Number(event.target.value))
               }
             >
-              {projectOptions.map((project) => (
+              {availableProjects.map((project) => (
                 <option key={project.project_id} value={project.project_id}>
                   {project.project_name}
                 </option>
@@ -937,6 +1034,48 @@ function CreateAttendanceTemplatePage({
                       </p>
                     ) : null}
 
+                    {activeFieldId === field.id ? (
+                      <div className="inline-two-cols" style={{ marginTop: 12 }}>
+                        <label>
+                          <span>การใช้งานของข้อมูล</span>
+                          <select
+                            className="select-control"
+                            value={field.field_usage}
+                            onChange={(event) =>
+                              updateField(field.id, (currentField) => ({
+                                ...currentField,
+                                field_usage: event.target.value
+                              }))
+                            }
+                          >
+                            {FIELD_USAGES.map((usage) => (
+                              <option key={usage.value} value={usage.value}>
+                                {usage.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        {supportsUniqueValue(field.field_type) ? (
+                          <label className="checkbox-row" style={{ marginTop: 24 }}>
+                            <input
+                              type="checkbox"
+                              checked={field.is_unique_value}
+                              onChange={(event) =>
+                                updateField(field.id, (currentField) => ({
+                                  ...currentField,
+                                  is_unique_value: event.target.checked
+                                }))
+                              }
+                            />
+                            <span>บังคับไม่ให้ข้อมูลซ้ำ</span>
+                          </label>
+                        ) : (
+                          <div />
+                        )}
+                      </div>
+                    ) : null}
+
                     {/* Short/Long text placeholder preview */}
                     {field.field_type === "short_text" ? (
                       activeFieldId === field.id ? (
@@ -1137,6 +1276,76 @@ function CreateAttendanceTemplatePage({
                       <div className="question-placeholder-field" style={{ marginTop: 16 }}>
                         เวลา
                       </div>
+                    ) : null}
+
+                    {field.field_type === "file_upload" ? (
+                      activeFieldId === field.id ? (
+                        <div className="inline-two-cols" style={{ marginTop: 12 }}>
+                          <label>
+                            <span>ขนาดไฟล์สูงสุด (MB)</span>
+                            <input
+                              className="input-control"
+                              type="number"
+                              min={1}
+                              max={50}
+                              value={field.settings_json.max_file_size_mb || 10}
+                              onChange={(event) => {
+                                const nextSize = Number(event.target.value);
+                                updateField(field.id, (currentField) => ({
+                                  ...currentField,
+                                  settings_json: normalizeFileSettings({
+                                    ...currentField.settings_json,
+                                    max_file_size_mb: nextSize
+                                  })
+                                }));
+                              }}
+                            />
+                          </label>
+
+                          <label>
+                            <span>จำนวนไฟล์สูงสุด</span>
+                            <input
+                              className="input-control"
+                              type="number"
+                              min={1}
+                              max={5}
+                              value={field.settings_json.max_file_count || 1}
+                              onChange={(event) => {
+                                const nextCount = Number(event.target.value);
+                                updateField(field.id, (currentField) => ({
+                                  ...currentField,
+                                  settings_json: normalizeFileSettings({
+                                    ...currentField.settings_json,
+                                    max_file_count: nextCount
+                                  })
+                                }));
+                              }}
+                            />
+                          </label>
+
+                          <label className="full-width">
+                            <span>ประเภทไฟล์ที่อนุญาต</span>
+                            <input
+                              className="input-control"
+                              value={field.settings_json.allowed_file_types || ""}
+                              placeholder="เช่น pdf,jpg,jpeg,png"
+                              onChange={(event) =>
+                                updateField(field.id, (currentField) => ({
+                                  ...currentField,
+                                  settings_json: normalizeFileSettings({
+                                    ...currentField.settings_json,
+                                    allowed_file_types: event.target.value
+                                  })
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                      ) : (
+                        <div className="question-placeholder-field" style={{ marginTop: 16 }}>
+                          รองรับไฟล์ {field.settings_json.allowed_file_types || "pdf,jpg,jpeg,png"}
+                        </div>
+                      )
                     ) : null}
 
                     {/* Footer: Required toggle + action icons */}

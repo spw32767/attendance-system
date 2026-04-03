@@ -4,6 +4,9 @@ function AdminLayout({
   onBack,
   theme,
   onToggleTheme,
+  navItems,
+  activePath,
+  onNavigate,
   children
 }) {
   return (
@@ -46,6 +49,29 @@ function AdminLayout({
             </button>
           </div>
         </header>
+
+        {navItems?.length ? (
+          <nav className="admin-nav-strip" aria-label="เมนูหลังบ้าน">
+            {navItems.map((item) => {
+              const isActive =
+                item.isActive ??
+                (item.matchPaths?.includes(activePath) ||
+                  item.matchPrefixes?.some((prefix) => activePath?.startsWith(prefix)) ||
+                  item.path === activePath);
+
+              return (
+                <button
+                  key={item.path}
+                  className={`admin-nav-button${isActive ? " admin-nav-button-active" : ""}`}
+                  type="button"
+                  onClick={() => onNavigate?.(item.path)}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </nav>
+        ) : null}
 
         <section className="admin-content">{children}</section>
       </main>

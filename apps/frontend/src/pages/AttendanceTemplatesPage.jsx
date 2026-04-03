@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import AdminLayout from "../components/AdminLayout";
-import { templateRecords } from "../mock/templates";
 
 const PAGE_SIZE = 10;
 
@@ -20,11 +19,20 @@ const STATUS_META = {
 };
 
 function AttendanceTemplatesPage({
+  project,
+  templates,
   onCreateTemplate,
   onEditTemplate,
+  onOpenSubmissions,
+  onOpenItems,
+  onOpenEmail,
+  onBackToProjects,
   onLogout,
   theme,
-  onToggleTheme
+  onToggleTheme,
+  navItems,
+  activePath,
+  onNavigate
 }) {
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(1);
@@ -32,10 +40,10 @@ function AttendanceTemplatesPage({
   const filteredTemplates = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
     if (!keyword) {
-      return templateRecords;
+      return templates;
     }
 
-    return templateRecords.filter((template) => {
+    return templates.filter((template) => {
       const searchable = [
         template.project_name,
         template.form_name,
@@ -48,7 +56,7 @@ function AttendanceTemplatesPage({
 
       return searchable.includes(keyword);
     });
-  }, [searchText]);
+  }, [templates, searchText]);
 
   const totalRows = filteredTemplates.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
@@ -65,16 +73,29 @@ function AttendanceTemplatesPage({
 
   return (
     <AdminLayout
-      breadcrumbs={["แอดมิน", "เทมเพลตลงชื่อเข้าร่วม"]}
+      breadcrumbs={["แอดมิน", "โครงการ", project.project_name, "ฟอร์ม"]}
       onLogout={onLogout}
       theme={theme}
       onToggleTheme={onToggleTheme}
+      navItems={navItems}
+      activePath={activePath}
+      onNavigate={onNavigate}
     >
       <section className="templates-head">
-        <h1>เทมเพลตลงชื่อเข้าร่วม</h1>
-        <button className="primary-button" type="button" onClick={onCreateTemplate}>
-          สร้างเทมเพลต
-        </button>
+        <div>
+          <h1>ฟอร์มของโครงการ</h1>
+          <p className="table-help-text">
+            {project.project_name} ({project.project_code})
+          </p>
+        </div>
+        <div className="inline-action-row">
+          <button className="ghost-button" type="button" onClick={onBackToProjects}>
+            กลับไปหน้าโครงการ
+          </button>
+          <button className="primary-button" type="button" onClick={onCreateTemplate}>
+            สร้างฟอร์ม
+          </button>
+        </div>
       </section>
 
       <section className="templates-card">
@@ -89,10 +110,11 @@ function AttendanceTemplatesPage({
         </div>
 
         <div className="templates-table-wrap">
-          <table className="templates-table">
+          <table className="templates-table forms-table">
             <thead>
               <tr>
                 <th>#</th>
+                <th>ชื่อฟอร์ม</th>
                 <th>ลิงก์แบบฟอร์ม</th>
                 <th>สถานะ</th>
                 <th>การจัดการ</th>
@@ -101,7 +123,7 @@ function AttendanceTemplatesPage({
             <tbody>
               {pagedTemplates.length === 0 ? (
                 <tr>
-                  <td className="empty-row" colSpan={4}>
+                  <td className="empty-row" colSpan={5}>
                     ไม่พบเทมเพลต
                   </td>
                 </tr>
@@ -113,6 +135,7 @@ function AttendanceTemplatesPage({
                   return (
                     <tr key={template.form_id}>
                       <td>{rowNumber}</td>
+                      <td>{template.form_name}</td>
                       <td>
                         <div className="template-url">
                           attendance.com/{template.public_path}?={template.share_key}
@@ -122,13 +145,36 @@ function AttendanceTemplatesPage({
                         <span className={statusMeta.className}>{statusMeta.label}</span>
                       </td>
                       <td>
-                        <button
-                          className="text-button"
-                          type="button"
-                          onClick={() => onEditTemplate(template.form_id)}
-                        >
-                          แก้ไข
-                        </button>
+                        <div className="inline-action-row">
+                          <button
+                            className="text-button"
+                            type="button"
+                            onClick={() => onEditTemplate(template.form_id)}
+                          >
+                            แก้ไข
+                          </button>
+                          <button
+                            className="text-button"
+                            type="button"
+                            onClick={() => onOpenSubmissions(template.form_id)}
+                          >
+                            คำตอบ
+                          </button>
+                          <button
+                            className="text-button"
+                            type="button"
+                            onClick={() => onOpenItems(template.form_id)}
+                          >
+                            ของ/สิทธิ์
+                          </button>
+                          <button
+                            className="text-button"
+                            type="button"
+                            onClick={() => onOpenEmail(template.form_id)}
+                          >
+                            อีเมล
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
