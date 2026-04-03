@@ -252,7 +252,9 @@ function CreateAttendanceTemplatePage({
   onToggleTheme,
   navItems,
   activePath,
-  onNavigate
+  onNavigate,
+  currentRole,
+  onRoleChange
 }) {
   const availableProjects = useMemo(
     () => projectRecords || [],
@@ -681,6 +683,8 @@ function CreateAttendanceTemplatePage({
       navItems={navItems}
       activePath={activePath}
       onNavigate={onNavigate}
+      currentRole={currentRole}
+      onRoleChange={onRoleChange}
     >
       <section className="builder-header builder-page-width">
         <div>

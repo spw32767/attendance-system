@@ -7,6 +7,8 @@ function AdminLayout({
   navItems,
   activePath,
   onNavigate,
+  currentRole,
+  onRoleChange,
   children
 }) {
   return (
@@ -47,6 +49,17 @@ function AdminLayout({
             <button className="text-button" type="button" onClick={onLogout}>
               ออกจากระบบ
             </button>
+            {onRoleChange ? (
+              <select
+                className="select-control role-select"
+                value={currentRole || "admin"}
+                onChange={(event) => onRoleChange(event.target.value)}
+              >
+                <option value="admin">admin</option>
+                <option value="staff">staff</option>
+                <option value="scanner">scanner</option>
+              </select>
+            ) : null}
           </div>
         </header>
 

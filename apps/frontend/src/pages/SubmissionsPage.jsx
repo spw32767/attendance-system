@@ -10,6 +10,10 @@ const STATUS_META = {
     label: "ส่งข้อมูลแล้ว",
     className: "status-pill status-pill-draft"
   },
+  completed: {
+    label: "เสร็จสิ้น",
+    className: "status-pill status-pill-active"
+  },
   cancelled: {
     label: "ยกเลิก",
     className: "status-pill status-pill-inactive"
@@ -29,7 +33,9 @@ function SubmissionsPage({
   onToggleTheme,
   navItems,
   activePath,
-  onNavigate
+  onNavigate,
+  currentRole,
+  onRoleChange
 }) {
   const [searchText, setSearchText] = useState("");
 
@@ -83,6 +89,8 @@ function SubmissionsPage({
       navItems={navItems}
       activePath={activePath}
       onNavigate={onNavigate}
+      currentRole={currentRole}
+      onRoleChange={onRoleChange}
     >
       <section className="templates-head">
         <h1>คำตอบแบบฟอร์ม</h1>

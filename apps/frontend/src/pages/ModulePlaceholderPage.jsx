@@ -10,7 +10,9 @@ function ModulePlaceholderPage({
   onToggleTheme,
   navItems,
   activePath,
-  onNavigate
+  onNavigate,
+  currentRole,
+  onRoleChange
 }) {
   return (
     <AdminLayout
@@ -21,6 +23,8 @@ function ModulePlaceholderPage({
       navItems={navItems}
       activePath={activePath}
       onNavigate={onNavigate}
+      currentRole={currentRole}
+      onRoleChange={onRoleChange}
     >
       <section className="templates-head">
         <h1>{title}</h1>

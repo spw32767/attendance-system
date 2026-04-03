@@ -6,13 +6,17 @@ import CreateAttendanceTemplatePage from "./pages/CreateAttendanceTemplatePage";
 import EmailCenterPage from "./pages/EmailCenterPage";
 import ItemsClaimsPage from "./pages/ItemsClaimsPage";
 import LoginPage from "./pages/LoginPage";
+import LoginLogsPage from "./pages/LoginLogsPage";
 import ModulePlaceholderPage from "./pages/ModulePlaceholderPage";
 import ProjectEditorPage from "./pages/ProjectEditorPage";
+import PublicFormPage from "./pages/PublicFormPage";
+import PublicFormSuccessPage from "./pages/PublicFormSuccessPage";
 import ProjectsPage from "./pages/ProjectsPage";
-import PublicFormPlaceholderPage from "./pages/PublicFormPlaceholderPage";
+import ScannerClaimsPage from "./pages/ScannerClaimsPage";
 import SubmissionDetailPage from "./pages/SubmissionDetailPage";
 import SubmissionsPage from "./pages/SubmissionsPage";
-import { mockAdminService } from "./services/mockAdminService";
+import UsersAdminPage from "./pages/UsersAdminPage";
+import { adminDataAdapter } from "./services/adminDataAdapter";
 
 const ROUTE_ID_LOGIN = "login";
 const ROUTE_ID_DASHBOARD = "dashboard";
@@ -30,6 +34,7 @@ const ROUTE_ID_USERS = "users";
 const ROUTE_ID_LOGIN_LOGS = "login-logs";
 const ROUTE_ID_SCANNER_CLAIMS = "scanner-claims";
 const ROUTE_ID_PUBLIC_FORM = "public-form";
+const ROUTE_ID_PUBLIC_FORM_SUCCESS = "public-form-success";
 
 const PATH_LOGIN = "/login";
 const PATH_DASHBOARD = "/admin/dashboard";
@@ -45,6 +50,27 @@ const PATH_LOGIN_LOGS = "/admin/login-logs";
 const PATH_SCANNER_CLAIMS = "/scanner/claims";
 
 const THEME_STORAGE_KEY = "attendance-theme";
+const ROLE_STORAGE_KEY = "attendance-role";
+
+const ROUTE_PERMISSION_GROUP = {
+  login: ["admin", "staff", "scanner"],
+  dashboard: ["admin", "staff"],
+  projects: ["admin", "staff"],
+  "project-create": ["admin", "staff"],
+  "project-edit": ["admin", "staff"],
+  "project-forms": ["admin", "staff"],
+  "form-editor": ["admin", "staff"],
+  submissions: ["admin", "staff"],
+  "submission-detail": ["admin", "staff"],
+  items: ["admin", "staff"],
+  claims: ["admin", "staff", "scanner"],
+  email: ["admin", "staff"],
+  users: ["admin"],
+  "login-logs": ["admin"],
+  "scanner-claims": ["admin", "staff", "scanner"],
+  "public-form": ["admin", "staff", "scanner"],
+  "public-form-success": ["admin", "staff", "scanner"]
+};
 
 const STATIC_ROUTES = {
   [PATH_LOGIN]: ROUTE_ID_LOGIN,
@@ -65,86 +91,6 @@ const ROUTE_ALIAS = {
   "/": PATH_LOGIN,
   "/admin/templates": PATH_PROJECTS,
   "/admin/templates/create": PATH_FORM_EDITOR
-};
-
-const MODULE_META = {
-  [ROUTE_ID_SUBMISSIONS]: {
-    title: "จัดการคำตอบแบบฟอร์ม",
-    description:
-      "หน้า UI นี้เตรียมไว้สำหรับดูคำตอบรายฟอร์ม, สถานะ attendance, เวลา check-in/check-out และไฟล์แนบ",
-    breadcrumbs: ["แอดมิน", "คำตอบแบบฟอร์ม"],
-    bullets: [
-      "ลิสต์คำตอบตามโครงการและฟอร์ม",
-      "ดูรายละเอียดคำตอบรายช่องแบบอ่านง่าย",
-      "ปรับสถานะ attendance และบันทึกหมายเหตุ"
-    ]
-  },
-  [ROUTE_ID_ITEMS]: {
-    title: "จัดการรายการของ",
-    description:
-      "หน้า UI นี้เตรียมไว้สำหรับกำหนดรายการของ/สิทธิ์ที่ผูกกับแต่ละฟอร์มก่อนเปิดให้ผู้ใช้ส่งข้อมูล",
-    breadcrumbs: ["แอดมิน", "รายการของ"],
-    bullets: [
-      "เพิ่ม/แก้ไขรายการของที่ผู้เข้าร่วมมีสิทธิ์รับ",
-      "กำหนดประเภทและจำนวนที่ให้ต่อหนึ่งคำตอบ",
-      "ตั้งค่าให้แสดงในอีเมลยืนยันหรือไม่"
-    ]
-  },
-  [ROUTE_ID_CLAIMS]: {
-    title: "ติดตามสิทธิ์รับของ",
-    description:
-      "หน้า UI นี้เตรียมไว้สำหรับติดตามสถานะสิทธิ์รับของจาก item claim token และผลการสแกนรับของ",
-    breadcrumbs: ["แอดมิน", "สิทธิ์รับของ"],
-    bullets: [
-      "ดูสถานะ pending/received แยกรายการของ",
-      "ค้นหาด้วย submission code หรือ claim token",
-      "ตรวจย้อนหลังว่าใครเป็นผู้สแกนรับของ"
-    ]
-  },
-  [ROUTE_ID_EMAIL]: {
-    title: "ตั้งค่าอีเมลและบันทึกการส่ง",
-    description:
-      "หน้า UI นี้เตรียมไว้สำหรับตั้งค่าเทมเพลตอีเมลรายฟอร์มและตรวจสอบประวัติการส่ง",
-    breadcrumbs: ["แอดมิน", "อีเมล"],
-    bullets: [
-      "แก้หัวข้อและเนื้อหาอีเมลยืนยันแบบฟอร์ม",
-      "เปิด/ปิดการแนบสรุปรายการของและ QR",
-      "ตรวจสถานะส่งอีเมล sent/failed"
-    ]
-  },
-  [ROUTE_ID_USERS]: {
-    title: "จัดการผู้ใช้งานภายใน",
-    description:
-      "หน้า UI นี้เตรียมไว้สำหรับจัดการบัญชีแอดมิน, staff, scanner และสิทธิ์การเข้าใช้งาน",
-    breadcrumbs: ["แอดมิน", "ผู้ใช้งาน"],
-    bullets: [
-      "สร้าง/แก้ไขผู้ใช้งานภายในระบบ",
-      "กำหนดบทบาทและสิทธิ์การเข้าถึง",
-      "ตั้งค่าว่าอนุญาต local login หรือ SSO"
-    ]
-  },
-  [ROUTE_ID_LOGIN_LOGS]: {
-    title: "บันทึกประวัติการเข้าสู่ระบบ",
-    description:
-      "หน้า UI นี้เตรียมไว้สำหรับตรวจสอบ login logs ทั้งแบบสำเร็จและล้มเหลว เพื่อช่วย audit และ debug",
-    breadcrumbs: ["แอดมิน", "ประวัติการเข้าสู่ระบบ"],
-    bullets: [
-      "ค้นหาด้วยอีเมล, วิธี login, สถานะ",
-      "ดูเหตุผล reject กรณี SSO ไม่ผ่าน",
-      "ตรวจสอบ IP และ User-Agent ย้อนหลัง"
-    ]
-  },
-  [ROUTE_ID_SCANNER_CLAIMS]: {
-    title: "หน้าสแกนรับของ",
-    description:
-      "หน้า UI นี้เตรียมไว้สำหรับสแกน QR token เพื่อยืนยันรับของตามสิทธิ์ และป้องกันสแกนซ้ำ",
-    breadcrumbs: ["สแกนเนอร์", "สแกนรับของ"],
-    bullets: [
-      "รับ token จากกล้องหรือกรอกเอง",
-      "แสดงผล pending/received/not found ทันที",
-      "รองรับการใช้งานซ้ำแบบ idempotent"
-    ]
-  }
 };
 
 const toProjectEditPath = (projectId) => `/admin/projects/${projectId}/edit`;
@@ -187,6 +133,16 @@ const matchDynamicRoute = (pathname) => {
       id: ROUTE_ID_PUBLIC_FORM,
       params: {
         publicPath: decodeURIComponent(publicFormMatch[1])
+      }
+    };
+  }
+
+  const publicFormSuccessMatch = pathname.match(/^\/forms\/([^/]+)\/success$/);
+  if (publicFormSuccessMatch) {
+    return {
+      id: ROUTE_ID_PUBLIC_FORM_SUCCESS,
+      params: {
+        publicPath: decodeURIComponent(publicFormSuccessMatch[1])
       }
     };
   }
@@ -255,6 +211,16 @@ function App() {
   const [claims, setClaims] = useState([]);
   const [emailTemplates, setEmailTemplates] = useState([]);
   const [emailLogs, setEmailLogs] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [ssoAccounts, setSsoAccounts] = useState([]);
+  const [adminLoginLogs, setAdminLoginLogs] = useState([]);
+  const [scanResult, setScanResult] = useState(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [bootstrapError, setBootstrapError] = useState("");
+  const [currentRole, setCurrentRole] = useState(() => {
+    const saved = window.localStorage.getItem(ROLE_STORAGE_KEY);
+    return saved || "admin";
+  });
 
   useEffect(() => {
     const normalized = parseRoute(window.location.href);
@@ -284,7 +250,14 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
+    window.localStorage.setItem(ROLE_STORAGE_KEY, currentRole);
+  }, [currentRole]);
+
+  useEffect(() => {
     const bootstrap = async () => {
+      setIsBootstrapping(true);
+      setBootstrapError("");
+      try {
       const [
         loadedProjects,
         loadedForms,
@@ -292,15 +265,21 @@ function App() {
         loadedItems,
         loadedClaims,
         loadedEmailTemplates,
-        loadedEmailLogs
+        loadedEmailLogs,
+        loadedUsers,
+        loadedSsoAccounts,
+        loadedAdminLoginLogs
       ] = await Promise.all([
-        mockAdminService.listProjects(),
-        mockAdminService.listForms(),
-        mockAdminService.listSubmissions(),
-        mockAdminService.listItems(),
-        mockAdminService.listClaims(),
-        mockAdminService.listEmailTemplates(),
-        mockAdminService.listEmailLogs()
+        adminDataAdapter.listProjects(),
+        adminDataAdapter.listForms(),
+        adminDataAdapter.listSubmissions(),
+        adminDataAdapter.listItems(),
+        adminDataAdapter.listClaims(),
+        adminDataAdapter.listEmailTemplates(),
+        adminDataAdapter.listEmailLogs(),
+        adminDataAdapter.listUsers(),
+        adminDataAdapter.listSsoAccounts(),
+        adminDataAdapter.listAdminLoginLogs()
       ]);
       setProjects(loadedProjects);
       setForms(loadedForms);
@@ -309,6 +288,14 @@ function App() {
       setClaims(loadedClaims);
       setEmailTemplates(loadedEmailTemplates);
       setEmailLogs(loadedEmailLogs);
+      setUsers(loadedUsers);
+      setSsoAccounts(loadedSsoAccounts);
+      setAdminLoginLogs(loadedAdminLoginLogs);
+      } catch (error) {
+        setBootstrapError(error instanceof Error ? error.message : "โหลดข้อมูลล้มเหลว");
+      } finally {
+        setIsBootstrapping(false);
+      }
     };
 
     void bootstrap();
@@ -497,9 +484,9 @@ function App() {
   const handleSaveProject = (draftProject) => {
     const save = async () => {
       if (route.id === ROUTE_ID_PROJECT_EDIT) {
-        await mockAdminService.upsertProject(Number(route.params.projectId), draftProject);
+        await adminDataAdapter.upsertProject(Number(route.params.projectId), draftProject);
       } else {
-        await mockAdminService.upsertProject(null, draftProject);
+        await adminDataAdapter.upsertProject(null, draftProject);
       }
 
       const [
@@ -509,15 +496,21 @@ function App() {
         nextItems,
         nextClaims,
         nextEmailTemplates,
-        nextEmailLogs
+        nextEmailLogs,
+        nextUsers,
+        nextSsoAccounts,
+        nextAdminLoginLogs
       ] = await Promise.all([
-        mockAdminService.listProjects(),
-        mockAdminService.listForms(),
-        mockAdminService.listSubmissions(),
-        mockAdminService.listItems(),
-        mockAdminService.listClaims(),
-        mockAdminService.listEmailTemplates(),
-        mockAdminService.listEmailLogs()
+        adminDataAdapter.listProjects(),
+        adminDataAdapter.listForms(),
+        adminDataAdapter.listSubmissions(),
+        adminDataAdapter.listItems(),
+        adminDataAdapter.listClaims(),
+        adminDataAdapter.listEmailTemplates(),
+        adminDataAdapter.listEmailLogs(),
+        adminDataAdapter.listUsers(),
+        adminDataAdapter.listSsoAccounts(),
+        adminDataAdapter.listAdminLoginLogs()
       ]);
 
       setProjects(nextProjects);
@@ -527,6 +520,9 @@ function App() {
       setClaims(nextClaims);
       setEmailTemplates(nextEmailTemplates);
       setEmailLogs(nextEmailLogs);
+      setUsers(nextUsers);
+      setSsoAccounts(nextSsoAccounts);
+      setAdminLoginLogs(nextAdminLoginLogs);
       navigate(PATH_PROJECTS, { replace: true });
     };
 
@@ -534,10 +530,10 @@ function App() {
   };
 
   const handleLoadFormDraft = async (formId, projectId) =>
-    mockAdminService.getFormDraft(formId, projectId);
+    adminDataAdapter.getFormDraft(formId, projectId);
 
   const handleSaveForm = async (formId, draft, targetStatus) => {
-    const result = await mockAdminService.saveFormDraft(formId, draft, targetStatus);
+    const result = await adminDataAdapter.saveFormDraft(formId, draft, targetStatus);
 
     const [
       nextForms,
@@ -545,14 +541,20 @@ function App() {
       nextItems,
       nextClaims,
       nextEmailTemplates,
-      nextEmailLogs
+      nextEmailLogs,
+      nextUsers,
+      nextSsoAccounts,
+      nextAdminLoginLogs
     ] = await Promise.all([
-      mockAdminService.listForms(),
-      mockAdminService.listSubmissions(),
-      mockAdminService.listItems(),
-      mockAdminService.listClaims(),
-      mockAdminService.listEmailTemplates(),
-      mockAdminService.listEmailLogs()
+      adminDataAdapter.listForms(),
+      adminDataAdapter.listSubmissions(),
+      adminDataAdapter.listItems(),
+      adminDataAdapter.listClaims(),
+      adminDataAdapter.listEmailTemplates(),
+      adminDataAdapter.listEmailLogs(),
+      adminDataAdapter.listUsers(),
+      adminDataAdapter.listSsoAccounts(),
+      adminDataAdapter.listAdminLoginLogs()
     ]);
 
     setForms(nextForms);
@@ -561,22 +563,64 @@ function App() {
     setClaims(nextClaims);
     setEmailTemplates(nextEmailTemplates);
     setEmailLogs(nextEmailLogs);
+    setUsers(nextUsers);
+    setSsoAccounts(nextSsoAccounts);
+    setAdminLoginLogs(nextAdminLoginLogs);
 
     return result;
   };
 
   const handleUpdateClaimStatus = async (claimId, receiveStatus) => {
-    await mockAdminService.updateClaimStatus(claimId, receiveStatus);
-    const [nextClaims] = await Promise.all([mockAdminService.listClaims()]);
+    await adminDataAdapter.updateClaimStatus(claimId, receiveStatus);
+    const [nextClaims] = await Promise.all([adminDataAdapter.listClaims()]);
     setClaims(nextClaims);
   };
 
   const handleSaveEmailTemplate = async (templateId, payload) => {
-    await mockAdminService.updateEmailTemplate(templateId, payload);
+    await adminDataAdapter.updateEmailTemplate(templateId, payload);
     const [nextEmailTemplates] = await Promise.all([
-      mockAdminService.listEmailTemplates()
+      adminDataAdapter.listEmailTemplates()
     ]);
     setEmailTemplates(nextEmailTemplates);
+  };
+
+  const handleUpdateUser = async (userId, payload) => {
+    await adminDataAdapter.updateUser(userId, payload);
+    const [nextUsers] = await Promise.all([adminDataAdapter.listUsers()]);
+    setUsers(nextUsers);
+  };
+
+  const handleScanToken = async (token) => {
+    const result = await adminDataAdapter.scanClaimToken(token);
+    setScanResult(result);
+    const [nextClaims] = await Promise.all([adminDataAdapter.listClaims()]);
+    setClaims(nextClaims);
+  };
+
+  const handleUpdateSubmission = async (submissionId, payload) => {
+    await adminDataAdapter.updateSubmission(submissionId, payload);
+    const [nextSubmissions, nextDetail] = await Promise.all([
+      adminDataAdapter.listSubmissions(),
+      adminDataAdapter.getSubmissionDetail(submissionId)
+    ]);
+    setSubmissions(nextSubmissions);
+    setSubmissionDetail(nextDetail);
+  };
+
+  const handleLoadPublicForm = async (publicPath) =>
+    adminDataAdapter.getPublicForm(publicPath);
+
+  const handleSubmitPublicForm = async (publicPath, payload) => {
+    const result = await adminDataAdapter.submitPublicForm(publicPath, payload);
+    const [nextSubmissions, nextClaims, nextEmailLogs] = await Promise.all([
+      adminDataAdapter.listSubmissions(),
+      adminDataAdapter.listClaims(),
+      adminDataAdapter.listEmailLogs()
+    ]);
+    setSubmissions(nextSubmissions);
+    setClaims(nextClaims);
+    setEmailLogs(nextEmailLogs);
+    return result;
   };
 
   useEffect(() => {
@@ -586,12 +630,17 @@ function App() {
     }
 
     const loadDetail = async () => {
-      const detail = await mockAdminService.getSubmissionDetail(route.params.submissionId);
+      const detail = await adminDataAdapter.getSubmissionDetail(route.params.submissionId);
       setSubmissionDetail(detail);
     };
 
     void loadDetail();
   }, [route.id, route.params.submissionId, submissions]);
+
+  const canAccessCurrentRoute = useMemo(() => {
+    const allowedRoles = ROUTE_PERMISSION_GROUP[route.id] || ["admin"];
+    return allowedRoles.includes(currentRole);
+  }, [currentRole, route.id]);
 
   let currentPage = null;
 
@@ -614,6 +663,8 @@ function App() {
         navItems={adminNavItems}
         activePath={route.pathname}
         onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
         quickLinks={dashboardLinks}
       />
     );
@@ -632,6 +683,8 @@ function App() {
         navItems={adminNavItems}
         activePath={route.pathname}
         onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -648,6 +701,8 @@ function App() {
         navItems={adminNavItems}
         activePath={route.pathname}
         onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -670,6 +725,8 @@ function App() {
           navItems={adminNavItems}
           activePath={route.pathname}
           onNavigate={navigate}
+          currentRole={currentRole}
+          onRoleChange={setCurrentRole}
         />
       );
     } else {
@@ -684,6 +741,8 @@ function App() {
           navItems={adminNavItems}
           activePath={route.pathname}
           onNavigate={navigate}
+          currentRole={currentRole}
+          onRoleChange={setCurrentRole}
         />
       );
     }
@@ -708,6 +767,8 @@ function App() {
           navItems={adminNavItems}
           activePath={route.pathname}
           onNavigate={navigate}
+          currentRole={currentRole}
+          onRoleChange={setCurrentRole}
         />
       );
     } else {
@@ -743,6 +804,8 @@ function App() {
           navItems={adminNavItems}
           activePath={route.pathname}
           onNavigate={navigate}
+          currentRole={currentRole}
+          onRoleChange={setCurrentRole}
         />
       );
     }
@@ -776,29 +839,59 @@ function App() {
         navItems={adminNavItems}
         activePath={route.pathname}
         onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
       />
     );
   }
 
-  if (
-    route.id === ROUTE_ID_USERS ||
-    route.id === ROUTE_ID_LOGIN_LOGS ||
-    route.id === ROUTE_ID_SCANNER_CLAIMS
-  ) {
-    const moduleMeta = MODULE_META[route.id];
-
+  if (route.id === ROUTE_ID_USERS) {
     currentPage = (
-      <ModulePlaceholderPage
-        title={moduleMeta.title}
-        description={moduleMeta.description}
-        bullets={moduleMeta.bullets}
-        breadcrumbs={moduleMeta.breadcrumbs}
+      <UsersAdminPage
+        users={users}
+        ssoAccounts={ssoAccounts}
+        onUpdateUser={handleUpdateUser}
         onLogout={() => navigate(PATH_LOGIN, { replace: true })}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
         activePath={route.pathname}
         onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
+      />
+    );
+  }
+
+  if (route.id === ROUTE_ID_LOGIN_LOGS) {
+    currentPage = (
+      <LoginLogsPage
+        logs={adminLoginLogs}
+        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        navItems={adminNavItems}
+        activePath={route.pathname}
+        onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
+      />
+    );
+  }
+
+  if (route.id === ROUTE_ID_SCANNER_CLAIMS) {
+    currentPage = (
+      <ScannerClaimsPage
+        scanResult={scanResult}
+        onScanToken={handleScanToken}
+        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        navItems={adminNavItems}
+        activePath={route.pathname}
+        onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -833,6 +926,8 @@ function App() {
         navItems={adminNavItems}
         activePath={route.pathname}
         onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -842,12 +937,15 @@ function App() {
       <SubmissionDetailPage
         submission={submissionDetail}
         onBack={() => navigate(PATH_SUBMISSIONS)}
+        onUpdateSubmission={handleUpdateSubmission}
         onLogout={() => navigate(PATH_LOGIN, { replace: true })}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
         activePath={route.pathname}
         onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -866,6 +964,8 @@ function App() {
         navItems={adminNavItems}
         activePath={route.pathname}
         onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -884,14 +984,38 @@ function App() {
         navItems={adminNavItems}
         activePath={route.pathname}
         onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
       />
     );
   }
 
   if (route.id === ROUTE_ID_PUBLIC_FORM) {
     currentPage = (
-      <PublicFormPlaceholderPage
+      <PublicFormPage
         publicPath={route.params.publicPath}
+        onLoadPublicForm={handleLoadPublicForm}
+        onSubmitPublicForm={handleSubmitPublicForm}
+        onNavigateSuccess={(result) => {
+          const query = new URLSearchParams();
+          query.set("code", result.submissionCode || "");
+          query.set("title", result.successTitle || "");
+          query.set("message", result.successMessage || "");
+          navigate(`/forms/${route.params.publicPath}/success?${query.toString()}`);
+        }}
+        onGoLogin={() => navigate(PATH_LOGIN)}
+      />
+    );
+  }
+
+  if (route.id === ROUTE_ID_PUBLIC_FORM_SUCCESS) {
+    currentPage = (
+      <PublicFormSuccessPage
+        publicPath={route.params.publicPath}
+        submissionCode={routeSearchParams.get("code")}
+        title={routeSearchParams.get("title")}
+        message={routeSearchParams.get("message")}
+        onFillAgain={() => navigate(`/forms/${route.params.publicPath}`)}
         onGoLogin={() => navigate(PATH_LOGIN)}
       />
     );
@@ -903,6 +1027,76 @@ function App() {
         onLogin={() => navigate(PATH_DASHBOARD)}
         theme={theme}
         onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
+  if (
+    isBootstrapping &&
+    route.id !== ROUTE_ID_LOGIN &&
+    route.id !== ROUTE_ID_PUBLIC_FORM &&
+    route.id !== ROUTE_ID_PUBLIC_FORM_SUCCESS
+  ) {
+    currentPage = (
+      <ModulePlaceholderPage
+        title="กำลังโหลดข้อมูลระบบ"
+        description="ระบบกำลังเตรียมข้อมูลหน้าจอ กรุณารอสักครู่"
+        bullets={[]}
+        breadcrumbs={["แอดมิน", "Loading"]}
+        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        navItems={adminNavItems}
+        activePath={route.pathname}
+        onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
+      />
+    );
+  }
+
+  if (
+    bootstrapError &&
+    route.id !== ROUTE_ID_LOGIN &&
+    route.id !== ROUTE_ID_PUBLIC_FORM &&
+    route.id !== ROUTE_ID_PUBLIC_FORM_SUCCESS
+  ) {
+    currentPage = (
+      <ModulePlaceholderPage
+        title="โหลดข้อมูลไม่สำเร็จ"
+        description={`เกิดข้อผิดพลาด: ${bootstrapError}`}
+        bullets={["ลองรีเฟรชหน้าอีกครั้ง", "ตรวจสอบ mock adapter/service"]}
+        breadcrumbs={["แอดมิน", "Error"]}
+        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        navItems={adminNavItems}
+        activePath={route.pathname}
+        onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
+      />
+    );
+  }
+
+  if (!canAccessCurrentRoute) {
+    currentPage = (
+      <ModulePlaceholderPage
+        title="ไม่มีสิทธิ์เข้าถึงหน้านี้"
+        description={`บทบาทปัจจุบัน: ${currentRole} ไม่สามารถเข้าถึงเส้นทาง ${route.pathname}`}
+        bullets={[
+          "เลือกบทบาทจากมุมขวาบนเพื่อทดสอบ permission matrix",
+          "สำหรับใช้งานจริง ระบบจะอ่านบทบาทจาก session/auth token"
+        ]}
+        breadcrumbs={["แอดมิน", "Access Control"]}
+        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        navItems={adminNavItems}
+        activePath={route.pathname}
+        onNavigate={navigate}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
       />
     );
   }

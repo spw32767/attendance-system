@@ -12,7 +12,9 @@ function EmailCenterPage({
   onToggleTheme,
   navItems,
   activePath,
-  onNavigate
+  onNavigate,
+  currentRole,
+  onRoleChange
 }) {
   const [activeTab, setActiveTab] = useState("templates");
   const [projectFilter, setProjectFilter] = useState("");
@@ -71,6 +73,8 @@ function EmailCenterPage({
       navItems={navItems}
       activePath={activePath}
       onNavigate={onNavigate}
+      currentRole={currentRole}
+      onRoleChange={onRoleChange}
     >
       <section className="templates-head">
         <h1>อีเมลยืนยันและประวัติการส่ง</h1>

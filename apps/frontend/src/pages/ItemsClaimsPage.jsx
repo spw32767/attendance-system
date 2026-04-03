@@ -18,7 +18,9 @@ function ItemsClaimsPage({
   onToggleTheme,
   navItems,
   activePath,
-  onNavigate
+  onNavigate,
+  currentRole,
+  onRoleChange
 }) {
   const [projectFilter, setProjectFilter] = useState("");
   const [formFilter, setFormFilter] = useState("");
@@ -59,6 +61,8 @@ function ItemsClaimsPage({
       navItems={navItems}
       activePath={activePath}
       onNavigate={onNavigate}
+      currentRole={currentRole}
+      onRoleChange={onRoleChange}
     >
       <section className="templates-head">
         <h1>{mode === "items" ? "รายการของตามฟอร์ม" : "ติดตามสิทธิ์รับของ"}</h1>

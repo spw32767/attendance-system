@@ -64,6 +64,8 @@ const state = {
       attendance_status: "present",
       submitted_at: "2026-07-03T08:12:33",
       check_in_at: "2026-07-03T08:45:10",
+      check_out_at: "",
+      note: "",
       source_type: "public_form"
     },
     {
@@ -76,6 +78,8 @@ const state = {
       attendance_status: "submitted",
       submitted_at: "2026-07-03T09:20:45",
       check_in_at: "",
+      check_out_at: "",
+      note: "",
       source_type: "public_form"
     },
     {
@@ -88,6 +92,8 @@ const state = {
       attendance_status: "submitted",
       submitted_at: "2026-08-10T10:05:15",
       check_in_at: "",
+      check_out_at: "",
+      note: "",
       source_type: "public_form"
     }
   ],
@@ -207,6 +213,76 @@ const state = {
       send_status: "sent",
       created_at: "2026-08-10T10:05:16"
     }
+  ],
+  submissionAnswersById: {},
+  users: [
+    {
+      user_id: 1,
+      email: "admin@attendance.com",
+      display_name: "System Admin",
+      role_code: "admin",
+      is_active: true,
+      login_method: "local"
+    },
+    {
+      user_id: 2,
+      email: "staff@attendance.com",
+      display_name: "Event Staff",
+      role_code: "staff",
+      is_active: true,
+      login_method: "local"
+    },
+    {
+      user_id: 3,
+      email: "scanner@attendance.com",
+      display_name: "Claim Scanner",
+      role_code: "scanner",
+      is_active: true,
+      login_method: "local"
+    }
+  ],
+  ssoAccounts: [
+    {
+      sso_account_id: 1,
+      user_id: 1,
+      email: "admin@attendance.com",
+      provider_name: "google",
+      provider_user_id: "google-10001",
+      is_active: true,
+      linked_at: "2026-02-10T08:00:00"
+    }
+  ],
+  adminLoginLogs: [
+    {
+      login_log_id: 1,
+      email: "admin@attendance.com",
+      login_method: "local",
+      login_status: "success",
+      reject_reason: "",
+      ip_address: "10.1.1.10",
+      user_agent: "Mozilla/5.0",
+      logged_at: "2026-04-03T08:10:00"
+    },
+    {
+      login_log_id: 2,
+      email: "staff@attendance.com",
+      login_method: "sso",
+      login_status: "success",
+      reject_reason: "",
+      ip_address: "10.1.1.12",
+      user_agent: "Mozilla/5.0",
+      logged_at: "2026-04-03T08:12:00"
+    },
+    {
+      login_log_id: 3,
+      email: "unknown@attendance.com",
+      login_method: "sso",
+      login_status: "failed",
+      reject_reason: "user_not_found",
+      ip_address: "10.1.1.22",
+      user_agent: "Mozilla/5.0",
+      logged_at: "2026-04-03T08:15:00"
+    }
   ]
 };
 
@@ -220,6 +296,33 @@ const withProjectName = (form) => {
     project_name: project?.project_name || form.project_name
   };
 };
+
+const toPublicFormStatus = (form) => {
+  if (!form) {
+    return "not_found";
+  }
+
+  if (form.status !== "published") {
+    return "closed";
+  }
+
+  const now = new Date();
+  const startAt = form.start_at ? new Date(form.start_at) : null;
+  const endAt = form.end_at ? new Date(form.end_at) : null;
+
+  if (startAt && now < startAt) {
+    return "not_started";
+  }
+
+  if (endAt && now > endAt) {
+    return "ended";
+  }
+
+  return "open";
+};
+
+const toSubmissionCode = (formId, sequence) =>
+  `SUB-F${String(formId).padStart(3, "0")}-${String(sequence).padStart(4, "0")}`;
 
 const toFormSummary = (formId, draft) => {
   const existing = state.forms.find((form) => String(form.form_id) === String(formId));
@@ -340,9 +443,12 @@ export const mockAdminService = {
       (projectItem) => Number(projectItem.project_id) === Number(submission.project_id)
     );
 
-    const draft = state.formDrafts[String(submission.form_id)] || createDefaultDraft(submission.project_id);
+    const draft =
+      state.formDrafts[String(submission.form_id)] ||
+      createDefaultDraft(submission.project_id);
+    const existingAnswers = state.submissionAnswersById[String(submission.submission_id)];
 
-    const answers = (draft.fields || []).map((field, index) => {
+    const answers = existingAnswers || (draft.fields || []).map((field, index) => {
       let answerValue = "-";
 
       if (field.field_type === "short_text" || field.field_type === "long_text") {
@@ -390,6 +496,150 @@ export const mockAdminService = {
     });
   },
 
+  async getPublicForm(publicPath) {
+    const form = state.forms.find((item) => item.public_path === String(publicPath));
+    const status = toPublicFormStatus(form);
+
+    if (!form) {
+      return { status };
+    }
+
+    const draft = state.formDrafts[String(form.form_id)] || createDefaultDraft(form.project_id);
+
+    return clone({
+      status,
+      form: {
+        form_id: form.form_id,
+        public_path: form.public_path,
+        form_name: draft.form_name || form.form_name,
+        form_description: draft.form_description || form.form_description,
+        success_title: draft.success_title || form.success_title,
+        success_message: draft.success_message || form.success_message,
+        fields: draft.fields || []
+      }
+    });
+  },
+
+  async submitPublicForm(publicPath, payload) {
+    const form = state.forms.find((item) => item.public_path === String(publicPath));
+    const status = toPublicFormStatus(form);
+
+    if (!form || status !== "open") {
+      return { ok: false, status };
+    }
+
+    const draft = state.formDrafts[String(form.form_id)] || createDefaultDraft(form.project_id);
+    const answers = payload?.answers || {};
+
+    const fullNameField = draft.fields.find((field) => field.field_usage === "full_name");
+    const firstNameField = draft.fields.find((field) => field.field_usage === "first_name");
+    const lastNameField = draft.fields.find((field) => field.field_usage === "last_name");
+    const emailField = draft.fields.find((field) => field.field_usage === "email");
+
+    const respondentName =
+      answers[fullNameField?.id] ||
+      [answers[firstNameField?.id], answers[lastNameField?.id]].filter(Boolean).join(" ") ||
+      "ผู้ตอบแบบฟอร์ม";
+
+    const respondentEmail = answers[emailField?.id] || "unknown@example.com";
+
+    const nextSubmissionId =
+      state.submissions.length > 0
+        ? Math.max(...state.submissions.map((item) => Number(item.submission_id))) + 1
+        : 1;
+    const submissionCode = toSubmissionCode(form.form_id, nextSubmissionId);
+
+    const normalizedAnswers = (draft.fields || []).map((field, index) => {
+      const rawValue = answers[field.id];
+      let value = "-";
+
+      if (Array.isArray(rawValue)) {
+        value = rawValue.join(", ") || "-";
+      } else if (rawValue instanceof FileList) {
+        value = rawValue.length ? Array.from(rawValue).map((file) => file.name).join(", ") : "-";
+      } else if (rawValue !== undefined && rawValue !== null && rawValue !== "") {
+        value = String(rawValue);
+      }
+
+      return {
+        field_id: field.id,
+        field_label: field.field_label || `คำถาม ${index + 1}`,
+        field_type: field.field_type,
+        is_required: Boolean(field.is_required),
+        value
+      };
+    });
+
+    state.submissionAnswersById[String(nextSubmissionId)] = normalizedAnswers;
+
+    state.submissions.push({
+      submission_id: nextSubmissionId,
+      project_id: form.project_id,
+      form_id: String(form.form_id),
+      submission_code: submissionCode,
+      respondent_name: respondentName,
+      respondent_email: respondentEmail,
+      attendance_status: "submitted",
+      submitted_at: new Date().toISOString(),
+      check_in_at: "",
+      check_out_at: "",
+      note: "",
+      source_type: "public_form"
+    });
+
+    const relatedItems = state.items.filter(
+      (item) => String(item.form_id) === String(form.form_id) && Boolean(item.is_active)
+    );
+
+    relatedItems.forEach((item, itemIndex) => {
+      const nextClaimId =
+        state.claims.length > 0
+          ? Math.max(...state.claims.map((claim) => Number(claim.claim_id))) + 1
+          : 1;
+
+      state.claims.push({
+        claim_id: nextClaimId,
+        project_id: form.project_id,
+        form_id: String(form.form_id),
+        item_id: item.item_id,
+        submission_code: submissionCode,
+        claim_token: `CLAIM-${String(form.form_id).padStart(3, "0")}-${String(nextSubmissionId).padStart(4, "0")}-${itemIndex + 1}`,
+        receive_status: "pending",
+        received_at: ""
+      });
+    });
+
+    const activeTemplate = state.emailTemplates.find(
+      (template) =>
+        String(template.form_id) === String(form.form_id) && Boolean(template.is_active)
+    );
+
+    if (activeTemplate) {
+      const nextEmailLogId =
+        state.emailLogs.length > 0
+          ? Math.max(...state.emailLogs.map((log) => Number(log.email_log_id))) + 1
+          : 1;
+
+      state.emailLogs.push({
+        email_log_id: nextEmailLogId,
+        project_id: form.project_id,
+        form_id: String(form.form_id),
+        recipient_email: respondentEmail,
+        notification_code: activeTemplate.notification_code,
+        send_status: "sent",
+        created_at: new Date().toISOString()
+      });
+    }
+
+    return {
+      ok: true,
+      status: "submitted",
+      submissionCode,
+      successTitle: draft.success_title || form.success_title,
+      successMessage: draft.success_message || form.success_message
+    };
+  },
+
   async listItems() {
     return clone(
       state.items.map((item) => {
@@ -406,6 +656,17 @@ export const mockAdminService = {
           project_name: project?.project_name || "-"
         };
       })
+    );
+  },
+
+  async updateSubmission(submissionId, payload) {
+    state.submissions = state.submissions.map((submission) =>
+      Number(submission.submission_id) === Number(submissionId)
+        ? {
+            ...submission,
+            ...payload
+          }
+        : submission
     );
   },
 
@@ -442,6 +703,37 @@ export const mockAdminService = {
           }
         : claim
     );
+  },
+
+  async scanClaimToken(token) {
+    const normalizedToken = String(token || "").trim();
+    const targetClaim = state.claims.find((claim) => claim.claim_token === normalizedToken);
+
+    if (!targetClaim) {
+      return {
+        status: "not_found",
+        message: "ไม่พบโทเคนนี้ในระบบ"
+      };
+    }
+
+    if (targetClaim.receive_status === "received") {
+      return {
+        status: "already_used",
+        message: "โทเคนนี้ถูกใช้รับของแล้ว",
+        claim: clone(targetClaim)
+      };
+    }
+
+    await this.updateClaimStatus(targetClaim.claim_id, "received");
+    const updatedClaim = state.claims.find(
+      (claim) => Number(claim.claim_id) === Number(targetClaim.claim_id)
+    );
+
+    return {
+      status: "received",
+      message: "ยืนยันรับของเรียบร้อยแล้ว",
+      claim: clone(updatedClaim)
+    };
   },
 
   async listEmailTemplates() {
@@ -491,6 +783,39 @@ export const mockAdminService = {
         };
       })
     );
+  },
+
+  async listUsers() {
+    return clone(state.users);
+  },
+
+  async updateUser(userId, payload) {
+    state.users = state.users.map((user) =>
+      Number(user.user_id) === Number(userId)
+        ? {
+            ...user,
+            ...payload
+          }
+        : user
+    );
+  },
+
+  async listSsoAccounts() {
+    const usersById = state.users.reduce((lookup, user) => {
+      lookup[user.user_id] = user;
+      return lookup;
+    }, {});
+
+    return clone(
+      state.ssoAccounts.map((account) => ({
+        ...account,
+        display_name: usersById[account.user_id]?.display_name || "-"
+      }))
+    );
+  },
+
+  async listAdminLoginLogs() {
+    return clone(state.adminLoginLogs);
   },
 
   async upsertProject(projectId, payload) {

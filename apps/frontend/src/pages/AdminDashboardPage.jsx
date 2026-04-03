@@ -7,6 +7,8 @@ function AdminDashboardPage({
   navItems,
   activePath,
   onNavigate,
+  currentRole,
+  onRoleChange,
   quickLinks
 }) {
   return (
@@ -18,6 +20,8 @@ function AdminDashboardPage({
       navItems={navItems}
       activePath={activePath}
       onNavigate={onNavigate}
+      currentRole={currentRole}
+      onRoleChange={onRoleChange}
     >
       <section className="templates-head">
         <h1>แดชบอร์ดการจัดการระบบ</h1>

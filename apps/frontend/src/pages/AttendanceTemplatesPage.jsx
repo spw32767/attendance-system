@@ -32,7 +32,9 @@ function AttendanceTemplatesPage({
   onToggleTheme,
   navItems,
   activePath,
-  onNavigate
+  onNavigate,
+  currentRole,
+  onRoleChange
 }) {
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(1);
@@ -80,6 +82,8 @@ function AttendanceTemplatesPage({
       navItems={navItems}
       activePath={activePath}
       onNavigate={onNavigate}
+      currentRole={currentRole}
+      onRoleChange={onRoleChange}
     >
       <section className="templates-head">
         <div>

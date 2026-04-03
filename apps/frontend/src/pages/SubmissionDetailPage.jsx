@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import AdminLayout from "../components/AdminLayout";
 
 const FIELD_TYPE_LABELS = {
@@ -15,13 +16,22 @@ const FIELD_TYPE_LABELS = {
 function SubmissionDetailPage({
   submission,
   onBack,
+  onUpdateSubmission,
   onLogout,
   theme,
   onToggleTheme,
   navItems,
   activePath,
-  onNavigate
+  onNavigate,
+  currentRole,
+  onRoleChange
 }) {
+  const [noteDraft, setNoteDraft] = useState(submission?.note || "");
+
+  useEffect(() => {
+    setNoteDraft(submission?.note || "");
+  }, [submission?.note]);
+
   if (!submission) {
     return (
       <AdminLayout
@@ -33,6 +43,8 @@ function SubmissionDetailPage({
         navItems={navItems}
         activePath={activePath}
         onNavigate={onNavigate}
+        currentRole={currentRole}
+        onRoleChange={onRoleChange}
       >
         <section className="module-placeholder-card">
           <p>ไม่พบข้อมูลคำตอบที่ต้องการดูรายละเอียด</p>
@@ -51,6 +63,8 @@ function SubmissionDetailPage({
       navItems={navItems}
       activePath={activePath}
       onNavigate={onNavigate}
+      currentRole={currentRole}
+      onRoleChange={onRoleChange}
     >
       <section className="templates-head">
         <h1>รายละเอียดคำตอบ</h1>
@@ -82,6 +96,69 @@ function SubmissionDetailPage({
               disabled
             />
           </label>
+          <label>
+            <span>เช็กอิน</span>
+            <input
+              className="input-control"
+              value={submission.check_in_at ? new Date(submission.check_in_at).toLocaleString("th-TH") : "-"}
+              disabled
+            />
+          </label>
+          <label>
+            <span>เช็กเอาต์</span>
+            <input
+              className="input-control"
+              value={submission.check_out_at ? new Date(submission.check_out_at).toLocaleString("th-TH") : "-"}
+              disabled
+            />
+          </label>
+          <label className="full-width">
+            <span>หมายเหตุ</span>
+            <textarea
+              className="textarea-control"
+              rows={3}
+              value={noteDraft}
+              onChange={(event) => setNoteDraft(event.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="inline-action-row" style={{ marginTop: 12 }}>
+          <button
+            className="ghost-button"
+            type="button"
+            onClick={() =>
+              onUpdateSubmission(submission.submission_id, {
+                attendance_status: "present",
+                check_in_at: new Date().toISOString()
+              })
+            }
+          >
+            เช็กอิน
+          </button>
+          <button
+            className="ghost-button"
+            type="button"
+            onClick={() =>
+              onUpdateSubmission(submission.submission_id, {
+                attendance_status: "completed",
+                check_out_at: new Date().toISOString()
+              })
+            }
+          >
+            เช็กเอาต์
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() =>
+              onUpdateSubmission(submission.submission_id, {
+                note: noteDraft
+              })
+            }
+          >
+            บันทึกหมายเหตุ
+          </button>
         </div>
       </section>
 
