@@ -1,4 +1,15 @@
 import { useMemo, useState } from "react";
+import {
+  Plus,
+  Search,
+  ArrowLeft,
+  Pencil,
+  ClipboardList,
+  Package,
+  Mail,
+  ChevronLeft,
+  ChevronRight
+} from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 
 const PAGE_SIZE = 10;
@@ -93,24 +104,29 @@ function AttendanceTemplatesPage({
           </p>
         </div>
         <div className="inline-action-row">
-          <button className="ghost-button" type="button" onClick={onBackToProjects}>
-            กลับไปหน้าโครงการ
+          <button className="ghost-button icon-text-button" type="button" onClick={onBackToProjects}>
+            <ArrowLeft size={15} strokeWidth={2} />
+            <span>กลับไปหน้าโครงการ</span>
           </button>
-          <button className="primary-button" type="button" onClick={onCreateTemplate}>
-            สร้างฟอร์ม
+          <button className="primary-button icon-text-button" type="button" onClick={onCreateTemplate}>
+            <Plus size={16} strokeWidth={2.4} />
+            <span>สร้างฟอร์ม</span>
           </button>
         </div>
       </section>
 
       <section className="templates-card">
         <div className="templates-search-row">
-          <input
-            className="input-control templates-search"
-            type="text"
-            value={searchText}
-            placeholder="ค้นหาเทมเพลต"
-            onChange={handleSearch}
-          />
+          <div className="search-input-wrapper">
+            <Search size={16} strokeWidth={2} className="search-input-icon" />
+            <input
+              className="input-control templates-search search-with-icon"
+              type="text"
+              value={searchText}
+              placeholder="ค้นหาเทมเพลต..."
+              onChange={handleSearch}
+            />
+          </div>
         </div>
 
         <div className="templates-table-wrap">
@@ -151,32 +167,36 @@ function AttendanceTemplatesPage({
                       <td>
                         <div className="inline-action-row">
                           <button
-                            className="text-button"
+                            className="text-button icon-text-button"
                             type="button"
                             onClick={() => onEditTemplate(template.form_id)}
                           >
-                            แก้ไข
+                            <Pencil size={13} strokeWidth={2} />
+                            <span>แก้ไข</span>
                           </button>
                           <button
-                            className="text-button"
+                            className="text-button icon-text-button"
                             type="button"
                             onClick={() => onOpenSubmissions(template.form_id)}
                           >
-                            คำตอบ
+                            <ClipboardList size={13} strokeWidth={2} />
+                            <span>คำตอบ</span>
                           </button>
                           <button
-                            className="text-button"
+                            className="text-button icon-text-button"
                             type="button"
                             onClick={() => onOpenItems(template.form_id)}
                           >
-                            ของ/สิทธิ์
+                            <Package size={13} strokeWidth={2} />
+                            <span>ของ/สิทธิ์</span>
                           </button>
                           <button
-                            className="text-button"
+                            className="text-button icon-text-button"
                             type="button"
                             onClick={() => onOpenEmail(template.form_id)}
                           >
-                            อีเมล
+                            <Mail size={13} strokeWidth={2} />
+                            <span>อีเมล</span>
                           </button>
                         </div>
                       </td>
@@ -195,23 +215,25 @@ function AttendanceTemplatesPage({
 
           <div className="pagination-actions">
             <button
-              className="ghost-button"
+              className="ghost-button icon-text-button"
               type="button"
               onClick={() => setPage((current) => Math.max(1, current - 1))}
               disabled={normalizedPage <= 1}
             >
-              ก่อนหน้า
+              <ChevronLeft size={15} strokeWidth={2} />
+              <span>ก่อนหน้า</span>
             </button>
             <span className="pagination-current">{normalizedPage}</span>
             <button
-              className="ghost-button"
+              className="ghost-button icon-text-button"
               type="button"
               onClick={() =>
                 setPage((current) => Math.min(totalPages, current + 1))
               }
               disabled={normalizedPage >= totalPages}
             >
-              ถัดไป
+              <span>ถัดไป</span>
+              <ChevronRight size={15} strokeWidth={2} />
             </button>
           </div>
         </footer>

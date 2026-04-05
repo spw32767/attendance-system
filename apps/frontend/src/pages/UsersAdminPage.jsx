@@ -67,7 +67,7 @@ function UsersAdminPage({
       <section className="templates-card" style={{ marginTop: 12 }}>
         <div className="templates-table-wrap">
           {activeTab === "users" ? (
-            <table className="templates-table">
+            <table className="templates-table table-first-col-left">
               <thead>
                 <tr>
                   <th>ชื่อ</th>
@@ -99,7 +99,7 @@ function UsersAdminPage({
                     </td>
                     <td>{user.login_method}</td>
                     <td>
-                      <label className="checkbox-row compact">
+                      <label className="toggle-switch-label">
                         <input
                           type="checkbox"
                           checked={user.is_active}
@@ -107,7 +107,9 @@ function UsersAdminPage({
                             onUpdateUser(user.user_id, { is_active: event.target.checked })
                           }
                         />
-                        <span>{user.is_active ? "active" : "inactive"}</span>
+                        <span className="toggle-switch-track">
+                          <span className="toggle-switch-thumb" />
+                        </span>
                       </label>
                     </td>
                   </tr>
@@ -115,7 +117,7 @@ function UsersAdminPage({
               </tbody>
             </table>
           ) : (
-            <table className="templates-table">
+            <table className="templates-table table-first-col-left">
               <thead>
                 <tr>
                   <th>Email</th>

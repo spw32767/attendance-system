@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { ExternalLink, Search } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 
 const STATUS_META = {
@@ -129,12 +130,15 @@ function SubmissionsPage({
             ))}
           </select>
 
-          <input
-            className="input-control"
-            value={searchText}
-            placeholder="ค้นหาโค้ด, ชื่อ, อีเมล"
-            onChange={(event) => setSearchText(event.target.value)}
-          />
+          <div className="search-input-wrapper">
+            <Search size={16} strokeWidth={2} className="search-input-icon" />
+            <input
+              className="input-control search-with-icon"
+              value={searchText}
+              placeholder="ค้นหาโค้ด, ชื่อ, อีเมล"
+              onChange={(event) => setSearchText(event.target.value)}
+            />
+          </div>
         </div>
 
         <div className="templates-table-wrap">
@@ -164,11 +168,12 @@ function SubmissionsPage({
                     <tr key={row.submission_id}>
                       <td>
                         <button
-                          className="text-button"
+                          className="text-button icon-text-button"
                           type="button"
                           onClick={() => onOpenSubmission(row.submission_id)}
                         >
-                          {row.submission_code}
+                          <ExternalLink size={13} strokeWidth={2} />
+                          <span>{row.submission_code}</span>
                         </button>
                       </td>
                       <td>

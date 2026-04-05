@@ -1,4 +1,10 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChevronRight,
+  Folder,
+  ExternalLink,
+  Pencil
+} from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 
 const STATUS_LABELS = {
@@ -24,6 +30,60 @@ function AdminDashboardPage({
   onOpenFormEditor
 }) {
   const [collapsedProjects, setCollapsedProjects] = useState({});
+  const [closingProjects, setClosingProjects] = useState({});
+  const collapseTimersRef = useRef({});
+
+  useEffect(() => {
+    return () => {
+      Object.values(collapseTimersRef.current).forEach((timerId) => {
+        window.clearTimeout(timerId);
+      });
+    };
+  }, []);
+
+  const toggleProjectCollapse = (projectId) => {
+    const projectKey = Number(projectId);
+    const isCollapsed = Boolean(collapsedProjects[projectKey]);
+    const isClosing = Boolean(closingProjects[projectKey]);
+
+    if (isCollapsed || isClosing) {
+      if (collapseTimersRef.current[projectKey]) {
+        window.clearTimeout(collapseTimersRef.current[projectKey]);
+        delete collapseTimersRef.current[projectKey];
+      }
+      setClosingProjects((current) => {
+        if (!current[projectKey]) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[projectKey];
+        return next;
+      });
+      setCollapsedProjects((current) => ({
+        ...current,
+        [projectKey]: false
+      }));
+      return;
+    }
+
+    setClosingProjects((current) => ({
+      ...current,
+      [projectKey]: true
+    }));
+
+    collapseTimersRef.current[projectKey] = window.setTimeout(() => {
+      setCollapsedProjects((current) => ({
+        ...current,
+        [projectKey]: true
+      }));
+      setClosingProjects((current) => {
+        const next = { ...current };
+        delete next[projectKey];
+        return next;
+      });
+      delete collapseTimersRef.current[projectKey];
+    }, 190);
+  };
 
   const formsByProjectId = useMemo(() => {
     return forms.reduce((lookup, form) => {
@@ -66,36 +126,50 @@ function AdminDashboardPage({
             <tbody>
               {projects.map((project) => {
                 const isCollapsed = Boolean(collapsedProjects[project.project_id]);
+                const isClosing = Boolean(closingProjects[project.project_id]);
+                const isExpanded = !isCollapsed && !isClosing;
+                const canExpand = isCollapsed || isClosing;
                 const projectForms = formsByProjectId[project.project_id] || [];
+                const shouldRenderForms = !isCollapsed || isClosing;
 
                 return (
                   <Fragment key={`project-group-${project.project_id}`}>
-                    <tr key={`project-${project.project_id}`} className="dashboard-project-row">
+                    <tr
+                      key={`project-${project.project_id}`}
+                      className="dashboard-project-row dashboard-project-row-clickable"
+                      onClick={() => toggleProjectCollapse(project.project_id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          toggleProjectCollapse(project.project_id);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-expanded={isExpanded}
+                      aria-label={`${canExpand ? "ขยาย" : "พับ"}โครงการ ${project.project_name}`}
+                    >
                       <td>
                         <div className="dashboard-tree-cell dashboard-tree-project-cell">
                           <button
-                            className="icon-only-button icon-neutral-button dashboard-collapse-button"
+                            className="dashboard-collapse-btn"
                             type="button"
-                            onClick={() =>
-                              setCollapsedProjects((current) => ({
-                                ...current,
-                                [project.project_id]: !current[project.project_id]
-                              }))
-                            }
-                            aria-label={isCollapsed ? "ขยายฟอร์มในโครงการ" : "พับฟอร์มในโครงการ"}
-                            title={isCollapsed ? "ขยายฟอร์มในโครงการ" : "พับฟอร์มในโครงการ"}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleProjectCollapse(project.project_id);
+                            }}
+                            aria-label={canExpand ? "ขยายฟอร์มในโครงการ" : "พับฟอร์มในโครงการ"}
+                            title={canExpand ? "ขยายฟอร์มในโครงการ" : "พับฟอร์มในโครงการ"}
                           >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" className="dashboard-collapse-icon">
-                              <path
-                                d={isCollapsed ? "M9 6l6 6-6 6" : "M15 6l-6 6 6 6"}
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
+                            <ChevronRight
+                              size={16}
+                              strokeWidth={2.2}
+                              className={`dashboard-collapse-chevron${
+                                isExpanded ? " dashboard-collapse-chevron-open" : ""
+                              }`}
+                            />
                           </button>
+                          <Folder size={18} strokeWidth={1.8} className="dashboard-tree-icon" />
                           <div>
                             <p>{project.project_name}</p>
                             <small>
@@ -114,37 +188,51 @@ function AdminDashboardPage({
                           >
                             {project.is_active ? "ใช้งาน" : "ปิดใช้งาน"}
                           </span>
-                          <label className="checkbox-row compact status-toggle-inline">
-                            <span>เปิดใช้งาน</span>
+                          <label
+                            className="toggle-switch-label"
+                            onClick={(event) => event.stopPropagation()}
+                          >
                             <input
                               type="checkbox"
                               checked={Boolean(project.is_active)}
+                              onClick={(event) => event.stopPropagation()}
                               onChange={(event) =>
                                 onToggleProjectUsage(project.project_id, event.target.checked)
                               }
                             />
+                            <span className="toggle-switch-track">
+                              <span className="toggle-switch-thumb" />
+                            </span>
                           </label>
                         </div>
                       </td>
                       <td>
                         <button
-                          className="text-button"
+                          className="text-button icon-text-button"
                           type="button"
-                          onClick={() => onOpenProjectForms(project.project_id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenProjectForms(project.project_id);
+                          }}
                         >
-                          เปิดหน้าฟอร์มโครงการ
+                          <ExternalLink size={14} strokeWidth={2} />
+                          <span>เปิดหน้าฟอร์ม</span>
                         </button>
                       </td>
                     </tr>
 
-                    {!isCollapsed
+                    {shouldRenderForms
                       ? projectForms.map((form) => {
                           const isEnabled = form.status === "published";
                           return (
-                            <tr key={`form-${form.form_id}`} className="dashboard-form-row">
+                            <tr
+                              key={`form-${form.form_id}`}
+                              className={`dashboard-form-row${
+                                isClosing ? " dashboard-form-row-collapsing" : " dashboard-form-row-expanding"
+                              }`}
+                            >
                               <td>
                                 <div className="dashboard-tree-cell dashboard-tree-form-cell">
-                                  <span className="dashboard-tree-connector" />
                                   <div>
                                     <p>{form.form_name}</p>
                                     <small>/forms/{form.public_path}</small>
@@ -161,8 +249,7 @@ function AdminDashboardPage({
                                   >
                                     {STATUS_LABELS[form.status] || form.status}
                                   </span>
-                                  <label className="checkbox-row compact status-toggle-inline">
-                                    <span>เปิดใช้งาน</span>
+                                  <label className="toggle-switch-label">
                                     <input
                                       type="checkbox"
                                       checked={isEnabled}
@@ -170,18 +257,22 @@ function AdminDashboardPage({
                                         onToggleFormUsage(form.form_id, event.target.checked)
                                       }
                                     />
+                                    <span className="toggle-switch-track">
+                                      <span className="toggle-switch-thumb" />
+                                    </span>
                                   </label>
                                 </div>
                               </td>
                               <td>
                                 <button
-                                  className="text-button"
+                                  className="text-button icon-text-button"
                                   type="button"
                                   onClick={() =>
                                     onOpenFormEditor(form.project_id, form.form_id)
                                   }
                                 >
-                                  แก้ไขฟอร์ม
+                                  <Pencil size={13} strokeWidth={2} />
+                                  <span>แก้ไขฟอร์ม</span>
                                 </button>
                               </td>
                             </tr>

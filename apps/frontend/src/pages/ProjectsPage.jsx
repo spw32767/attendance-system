@@ -1,4 +1,12 @@
 import { useMemo, useState } from "react";
+import {
+  Plus,
+  Search,
+  FileText,
+  Pencil,
+  ChevronLeft,
+  ChevronRight
+} from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 
 const PAGE_SIZE = 10;
@@ -62,23 +70,27 @@ function ProjectsPage({
     >
       <section className="templates-head">
         <h1>จัดการโครงการ</h1>
-        <button className="primary-button" type="button" onClick={onCreateProject}>
-          สร้างโครงการ
+        <button className="primary-button icon-text-button" type="button" onClick={onCreateProject}>
+          <Plus size={16} strokeWidth={2.4} />
+          <span>สร้างโครงการ</span>
         </button>
       </section>
 
       <section className="templates-card">
         <div className="templates-search-row">
-          <input
-            className="input-control templates-search"
-            type="text"
-            value={searchText}
-            placeholder="ค้นหาโครงการ"
-            onChange={(event) => {
-              setSearchText(event.target.value);
-              setPage(1);
-            }}
-          />
+          <div className="search-input-wrapper">
+            <Search size={16} strokeWidth={2} className="search-input-icon" />
+            <input
+              className="input-control templates-search search-with-icon"
+              type="text"
+              value={searchText}
+              placeholder="ค้นหาโครงการ..."
+              onChange={(event) => {
+                setSearchText(event.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
         </div>
 
         <div className="templates-table-wrap">
@@ -124,18 +136,20 @@ function ProjectsPage({
                     <td>
                       <div className="inline-action-row">
                         <button
-                          className="text-button"
+                          className="text-button icon-text-button"
                           type="button"
                           onClick={() => onOpenProjectForms(project.project_id)}
                         >
-                          ฟอร์ม
+                          <FileText size={13} strokeWidth={2} />
+                          <span>ฟอร์ม</span>
                         </button>
                         <button
-                          className="text-button"
+                          className="text-button icon-text-button"
                           type="button"
                           onClick={() => onEditProject(project.project_id)}
                         >
-                          แก้ไข
+                          <Pencil size={13} strokeWidth={2} />
+                          <span>แก้ไข</span>
                         </button>
                       </div>
                     </td>
@@ -153,21 +167,23 @@ function ProjectsPage({
 
           <div className="pagination-actions">
             <button
-              className="ghost-button"
+              className="ghost-button icon-text-button"
               type="button"
               onClick={() => setPage((current) => Math.max(1, current - 1))}
               disabled={normalizedPage <= 1}
             >
-              ก่อนหน้า
+              <ChevronLeft size={15} strokeWidth={2} />
+              <span>ก่อนหน้า</span>
             </button>
             <span className="pagination-current">{normalizedPage}</span>
             <button
-              className="ghost-button"
+              className="ghost-button icon-text-button"
               type="button"
               onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
               disabled={normalizedPage >= totalPages}
             >
-              ถัดไป
+              <span>ถัดไป</span>
+              <ChevronRight size={15} strokeWidth={2} />
             </button>
           </div>
         </footer>

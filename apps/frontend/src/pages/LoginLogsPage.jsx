@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 
 function LoginLogsPage({
@@ -53,16 +54,19 @@ function LoginLogsPage({
 
       <section className="templates-card">
         <div className="templates-search-row">
-          <input
-            className="input-control templates-search"
-            value={searchText}
-            placeholder="ค้นหาอีเมล, สถานะ, IP"
-            onChange={(event) => setSearchText(event.target.value)}
-          />
+          <div className="search-input-wrapper">
+            <Search size={16} strokeWidth={2} className="search-input-icon" />
+            <input
+              className="input-control templates-search search-with-icon"
+              value={searchText}
+              placeholder="ค้นหาอีเมล, สถานะ, IP"
+              onChange={(event) => setSearchText(event.target.value)}
+            />
+          </div>
         </div>
 
         <div className="templates-table-wrap">
-          <table className="templates-table">
+          <table className="templates-table table-first-col-left">
             <thead>
               <tr>
                 <th>เวลา</th>

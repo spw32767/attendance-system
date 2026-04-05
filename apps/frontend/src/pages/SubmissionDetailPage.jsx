@@ -164,7 +164,7 @@ function SubmissionDetailPage({
 
       <section className="templates-card" style={{ marginTop: 14 }}>
         <div className="templates-table-wrap">
-          <table className="templates-table">
+          <table className="templates-table table-first-col-left">
             <thead>
               <tr>
                 <th>คำถาม</th>

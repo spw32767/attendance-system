@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 
 const CLAIM_STATUS_META = {
@@ -99,16 +100,19 @@ function ItemsClaimsPage({
             ))}
           </select>
 
-          <input
-            className="input-control"
-            value={searchText}
-            placeholder="ค้นหา"
-            onChange={(event) => setSearchText(event.target.value)}
-          />
+          <div className="search-input-wrapper">
+            <Search size={16} strokeWidth={2} className="search-input-icon" />
+            <input
+              className="input-control search-with-icon"
+              value={searchText}
+              placeholder="ค้นหา"
+              onChange={(event) => setSearchText(event.target.value)}
+            />
+          </div>
         </div>
 
         <div className="templates-table-wrap">
-          <table className="templates-table">
+          <table className="templates-table table-first-col-left">
             <thead>
               {mode === "items" ? (
                 <tr>

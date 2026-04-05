@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Pencil } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 
 function EmailCenterPage({
@@ -132,7 +133,7 @@ function EmailCenterPage({
 
         <div className="templates-table-wrap">
           {activeTab === "templates" ? (
-            <table className="templates-table">
+            <table className="templates-table table-first-col-left">
               <thead>
                 <tr>
                   <th>Template</th>
@@ -162,7 +163,7 @@ function EmailCenterPage({
                       </span>
                       <div style={{ marginTop: 6 }}>
                         <button
-                          className="text-button"
+                          className="text-button icon-text-button"
                           type="button"
                           onClick={() => {
                             setEditingTemplateId(template.email_template_id);
@@ -170,7 +171,8 @@ function EmailCenterPage({
                             setDraftBody(template.email_body || "");
                           }}
                         >
-                          แก้ไขข้อความ
+                          <Pencil size={13} strokeWidth={2} />
+                          <span>แก้ไขข้อความ</span>
                         </button>
                       </div>
                     </td>
@@ -179,7 +181,7 @@ function EmailCenterPage({
               </tbody>
             </table>
           ) : (
-            <table className="templates-table">
+            <table className="templates-table table-first-col-left">
               <thead>
                 <tr>
                   <th>เวลา</th>
