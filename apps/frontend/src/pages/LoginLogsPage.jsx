@@ -36,6 +36,11 @@ function LoginLogsPage({
     );
   }, [logs, searchText]);
 
+  const successLogs = useMemo(
+    () => logs.filter((log) => log.login_status === "success").length,
+    [logs]
+  );
+
   return (
     <AdminLayout
       breadcrumbs={["แอดมิน", "ประวัติการเข้าสู่ระบบ"]}
@@ -49,7 +54,27 @@ function LoginLogsPage({
       onRoleChange={onRoleChange}
     >
       <section className="templates-head">
-        <h1>ประวัติการเข้าสู่ระบบ</h1>
+        <div className="page-head-body">
+          <p className="page-kicker">Audit Trail</p>
+          <h1>ประวัติการเข้าสู่ระบบ</h1>
+          <p className="page-summary">
+            ใช้ตรวจสอบการเข้าใช้งานย้อนหลังทั้งฝั่งผู้ใช้และแอดมิน พร้อมค้นหาสถานะและอุปกรณ์ที่ใช้ล็อกอิน
+          </p>
+          <div className="page-stats">
+            <div className="page-stat">
+              <strong>{logs.length}</strong>
+              <span>เหตุการณ์ทั้งหมด</span>
+            </div>
+            <div className="page-stat">
+              <strong>{successLogs}</strong>
+              <span>เข้าสำเร็จ</span>
+            </div>
+            <div className="page-stat">
+              <strong>{logs.length - successLogs}</strong>
+              <span>ถูกปฏิเสธ</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="templates-card">
@@ -63,40 +88,43 @@ function LoginLogsPage({
               onChange={(event) => setSearchText(event.target.value)}
             />
           </div>
+          <p className="templates-search-meta">แสดง {filteredLogs.length} รายการจากทั้งหมด {logs.length}</p>
         </div>
 
         <div className="templates-table-wrap">
           <table className="templates-table table-first-col-left">
             <thead>
               <tr>
-                <th>เวลา</th>
-                <th>Email</th>
-                <th>Method</th>
-                <th>Status</th>
-                <th>Reject Reason</th>
-                <th>IP / UA</th>
+                <th className="table-col-date">เวลา</th>
+                <th className="table-col-meta">Email</th>
+                <th className="table-col-secondary">Method</th>
+                <th className="table-col-status">Status</th>
+                <th className="table-col-meta">Reject Reason</th>
+                <th className="table-col-primary table-col-left">IP / UA</th>
               </tr>
             </thead>
             <tbody>
               {filteredLogs.map((log) => (
                 <tr key={log.login_log_id}>
-                  <td>{new Date(log.logged_at).toLocaleString("th-TH")}</td>
-                  <td>{log.email}</td>
-                  <td>{log.login_method}</td>
-                  <td>
-                    <span
-                      className={`status-pill ${
-                        log.login_status === "success"
-                          ? "status-pill-active"
-                          : "status-pill-inactive"
-                      }`}
-                    >
-                      {log.login_status}
-                    </span>
+                  <td className="table-col-date">{new Date(log.logged_at).toLocaleString("th-TH")}</td>
+                  <td className="table-col-meta">{log.email}</td>
+                  <td className="table-col-secondary">{log.login_method}</td>
+                  <td className="table-col-status">
+                    <div className="table-status-readout">
+                      <span
+                        className={`status-pill ${
+                          log.login_status === "success"
+                            ? "status-pill-active"
+                            : "status-pill-inactive"
+                        }`}
+                      >
+                        {log.login_status}
+                      </span>
+                    </div>
                   </td>
-                  <td>{log.reject_reason || "-"}</td>
-                  <td>
-                    <div className="project-title-cell">
+                  <td className="table-col-meta">{log.reject_reason || "-"}</td>
+                  <td className="table-col-primary table-col-left">
+                    <div className="table-primary-cell">
                       <p>{log.ip_address}</p>
                       <small>{log.user_agent}</small>
                     </div>

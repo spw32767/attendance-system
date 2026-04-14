@@ -7,12 +7,6 @@ import {
 } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 
-const STATUS_LABELS = {
-  published: "เปิดใช้งาน",
-  draft: "ฉบับร่าง",
-  closed: "ปิดใช้งาน"
-};
-
 function AdminDashboardPage({
   onLogout,
   theme,
@@ -96,6 +90,16 @@ function AdminDashboardPage({
     }, {});
   }, [forms]);
 
+  const activeProjectsCount = useMemo(
+    () => projects.filter((project) => project.is_active).length,
+    [projects]
+  );
+
+  const publishedFormsCount = useMemo(
+    () => forms.filter((form) => form.status === "published").length,
+    [forms]
+  );
+
   return (
     <AdminLayout
       breadcrumbs={["แอดมิน", "แดชบอร์ด"]}
@@ -109,7 +113,27 @@ function AdminDashboardPage({
       onRoleChange={onRoleChange}
     >
       <section className="templates-head">
-        <h1>แดชบอร์ดโครงการและฟอร์ม</h1>
+        <div className="page-head-body">
+          <p className="page-kicker">Overview</p>
+          <h1>แดชบอร์ดโครงการและฟอร์ม</h1>
+          <p className="page-summary">
+            มองภาพรวมการเปิดใช้งานโครงการและฟอร์มทั้งหมดในหน้าเดียว เพื่อไล่ตรวจสอบสถานะได้เร็วขึ้น
+          </p>
+          <div className="page-stats">
+            <div className="page-stat">
+              <strong>{projects.length}</strong>
+              <span>โครงการทั้งหมด</span>
+            </div>
+            <div className="page-stat">
+              <strong>{activeProjectsCount}</strong>
+              <span>โครงการที่เปิดใช้งาน</span>
+            </div>
+            <div className="page-stat">
+              <strong>{publishedFormsCount}</strong>
+              <span>ฟอร์มที่เผยแพร่</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="templates-card dashboard-matrix-card">
@@ -117,10 +141,10 @@ function AdminDashboardPage({
           <table className="templates-table dashboard-tree-table">
             <thead>
               <tr>
-                <th>ชื่อโครงการ / ฟอร์ม</th>
-                <th>ประเภท</th>
-                <th>สถานะ / เปิดใช้งาน</th>
-                <th>จัดการ</th>
+                <th className="table-col-primary table-col-left">ชื่อโครงการ / ฟอร์ม</th>
+                <th className="table-col-secondary">ประเภท</th>
+                <th className="table-col-status">สถานะ / เปิดใช้งาน</th>
+                <th className="table-col-actions">จัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -149,7 +173,7 @@ function AdminDashboardPage({
                       aria-expanded={isExpanded}
                       aria-label={`${canExpand ? "ขยาย" : "พับ"}โครงการ ${project.project_name}`}
                     >
-                      <td>
+                      <td className="table-col-primary table-col-left">
                         <div className="dashboard-tree-cell dashboard-tree-project-cell">
                           <button
                             className="dashboard-collapse-btn"
@@ -178,37 +202,36 @@ function AdminDashboardPage({
                           </div>
                         </div>
                       </td>
-                      <td>{project.project_type_label || project.project_type}</td>
-                      <td>
+                      <td className="table-col-secondary">{project.project_type_label || project.project_type}</td>
+                      <td className="table-col-status">
                         <div className="dashboard-status-cell">
-                          <span
-                            className={`status-pill ${
-                              project.is_active ? "status-pill-active" : "status-pill-inactive"
-                            }`}
-                          >
-                            {project.is_active ? "ใช้งาน" : "ปิดใช้งาน"}
-                          </span>
-                          <label
-                            className="toggle-switch-label"
+                          <div
+                            className="table-status-control"
                             onClick={(event) => event.stopPropagation()}
                           >
-                            <input
-                              type="checkbox"
-                              checked={Boolean(project.is_active)}
-                              onClick={(event) => event.stopPropagation()}
-                              onChange={(event) =>
-                                onToggleProjectUsage(project.project_id, event.target.checked)
-                              }
-                            />
-                            <span className="toggle-switch-track">
-                              <span className="toggle-switch-thumb" />
-                            </span>
-                          </label>
+                            <label className="toggle-switch-label table-status-switch">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(project.is_active)}
+                                onClick={(event) => event.stopPropagation()}
+                                onChange={(event) =>
+                                  onToggleProjectUsage(project.project_id, event.target.checked)
+                                }
+                              />
+                              <span
+                                className="toggle-switch-track"
+                                data-off-label="ปิด"
+                                data-on-label="เปิด"
+                              >
+                                <span className="toggle-switch-thumb" />
+                              </span>
+                            </label>
+                          </div>
                         </div>
                       </td>
-                      <td>
+                      <td className="table-col-actions">
                         <button
-                          className="text-button icon-text-button"
+                          className="table-action-button table-action-button-primary"
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
@@ -216,7 +239,7 @@ function AdminDashboardPage({
                           }}
                         >
                           <ExternalLink size={14} strokeWidth={2} />
-                          <span>เปิดหน้าฟอร์ม</span>
+                          <span>ดูฟอร์ม</span>
                         </button>
                       </td>
                     </tr>
@@ -231,7 +254,7 @@ function AdminDashboardPage({
                                 isClosing ? " dashboard-form-row-collapsing" : " dashboard-form-row-expanding"
                               }`}
                             >
-                              <td>
+                              <td className="table-col-primary table-col-left">
                                 <div className="dashboard-tree-cell dashboard-tree-form-cell">
                                   <div>
                                     <p>{form.form_name}</p>
@@ -239,33 +262,32 @@ function AdminDashboardPage({
                                   </div>
                                 </div>
                               </td>
-                              <td>{form.form_type}</td>
-                              <td>
+                              <td className="table-col-secondary">{form.form_type}</td>
+                              <td className="table-col-status">
                                 <div className="dashboard-status-cell">
-                                  <span
-                                    className={`status-pill ${
-                                      isEnabled ? "status-pill-active" : "status-pill-inactive"
-                                    }`}
-                                  >
-                                    {STATUS_LABELS[form.status] || form.status}
-                                  </span>
-                                  <label className="toggle-switch-label">
-                                    <input
-                                      type="checkbox"
-                                      checked={isEnabled}
-                                      onChange={(event) =>
-                                        onToggleFormUsage(form.form_id, event.target.checked)
-                                      }
-                                    />
-                                    <span className="toggle-switch-track">
-                                      <span className="toggle-switch-thumb" />
-                                    </span>
-                                  </label>
+                                  <div className="table-status-control">
+                                    <label className="toggle-switch-label table-status-switch">
+                                      <input
+                                        type="checkbox"
+                                        checked={isEnabled}
+                                        onChange={(event) =>
+                                          onToggleFormUsage(form.form_id, event.target.checked)
+                                        }
+                                      />
+                                      <span
+                                        className="toggle-switch-track"
+                                        data-off-label="ปิด"
+                                        data-on-label="เปิด"
+                                      >
+                                        <span className="toggle-switch-thumb" />
+                                      </span>
+                                    </label>
+                                  </div>
                                 </div>
                               </td>
-                              <td>
+                              <td className="table-col-actions">
                                 <button
-                                  className="text-button icon-text-button"
+                                  className="table-action-button table-action-button-primary"
                                   type="button"
                                   onClick={() =>
                                     onOpenFormEditor(form.project_id, form.form_id)

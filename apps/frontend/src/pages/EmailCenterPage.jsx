@@ -65,6 +65,11 @@ function EmailCenterPage({
       (template) => Number(template.email_template_id) === Number(editingTemplateId)
     ) || null;
 
+  const activeTemplateCount = useMemo(
+    () => templates.filter((template) => template.is_active).length,
+    [templates]
+  );
+
   return (
     <AdminLayout
       breadcrumbs={["แอดมิน", "อีเมล"]}
@@ -78,7 +83,27 @@ function EmailCenterPage({
       onRoleChange={onRoleChange}
     >
       <section className="templates-head">
-        <h1>อีเมลยืนยันและประวัติการส่ง</h1>
+        <div className="page-head-body">
+          <p className="page-kicker">Email Center</p>
+          <h1>อีเมลยืนยันและประวัติการส่ง</h1>
+          <p className="page-summary">
+            จัดการเทมเพลตแจ้งเตือนและตรวจสอบประวัติการส่งตามโครงการและฟอร์มได้จากหน้าจอเดียว
+          </p>
+          <div className="page-stats">
+            <div className="page-stat">
+              <strong>{templates.length}</strong>
+              <span>เทมเพลตทั้งหมด</span>
+            </div>
+            <div className="page-stat">
+              <strong>{activeTemplateCount}</strong>
+              <span>เทมเพลตที่ใช้งาน</span>
+            </div>
+            <div className="page-stat">
+              <strong>{logs.length}</strong>
+              <span>ประวัติการส่ง</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <nav className="builder-tabs" aria-label="แท็บอีเมล">
@@ -98,7 +123,7 @@ function EmailCenterPage({
         </button>
       </nav>
 
-      <section className="templates-card" style={{ marginTop: 12 }}>
+      <section className="templates-card section-stack-gap-sm">
         <div className="templates-search-row submissions-filters">
           <select
             className="select-control"
@@ -128,7 +153,11 @@ function EmailCenterPage({
               </option>
             ))}
           </select>
-          <div />
+          <p className="templates-search-meta submissions-search-meta">
+            {activeTab === "templates"
+              ? `แสดง ${visibleTemplates.length} เทมเพลต`
+              : `แสดง ${visibleLogs.length} รายการส่งอีเมล`}
+          </p>
         </div>
 
         <div className="templates-table-wrap">
@@ -136,34 +165,44 @@ function EmailCenterPage({
             <table className="templates-table table-first-col-left">
               <thead>
                 <tr>
-                  <th>Template</th>
-                  <th>Notification</th>
-                  <th>โครงการ/ฟอร์ม</th>
-                  <th>สถานะ</th>
+                  <th className="table-col-primary table-col-left">Template</th>
+                  <th className="table-col-secondary">Notification</th>
+                  <th className="table-col-meta">โครงการ/ฟอร์ม</th>
+                  <th className="table-col-status">สถานะ</th>
+                  <th className="table-col-actions">การจัดการ</th>
                 </tr>
               </thead>
               <tbody>
                 {visibleTemplates.map((template) => (
                   <tr key={template.email_template_id}>
-                    <td>{template.template_name}</td>
-                    <td>{template.notification_code}</td>
-                    <td>
-                      <div className="project-title-cell">
+                    <td className="table-col-primary table-col-left">
+                      <div className="table-primary-cell">
+                        <p>{template.template_name}</p>
+                        <small>{template.is_active ? "พร้อมใช้งาน" : "ปิดใช้งานอยู่"}</small>
+                      </div>
+                    </td>
+                    <td className="table-col-secondary">{template.notification_code}</td>
+                    <td className="table-col-meta">
+                      <div className="table-primary-cell">
                         <p>{template.project_name}</p>
                         <small>{template.form_name}</small>
                       </div>
                     </td>
-                    <td>
-                      <span
-                        className={`status-pill ${
-                          template.is_active ? "status-pill-active" : "status-pill-inactive"
-                        }`}
-                      >
-                        {template.is_active ? "ใช้งาน" : "ปิดใช้งาน"}
-                      </span>
-                      <div style={{ marginTop: 6 }}>
+                    <td className="table-col-status">
+                      <div className="table-status-readout">
+                        <span
+                          className={`status-pill ${
+                            template.is_active ? "status-pill-active" : "status-pill-inactive"
+                          }`}
+                        >
+                          {template.is_active ? "ใช้งาน" : "ปิดใช้งาน"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="table-col-actions">
+                      <div className="table-actions">
                         <button
-                          className="text-button icon-text-button"
+                          className="table-action-button table-action-button-primary"
                           type="button"
                           onClick={() => {
                             setEditingTemplateId(template.email_template_id);
@@ -184,29 +223,29 @@ function EmailCenterPage({
             <table className="templates-table table-first-col-left">
               <thead>
                 <tr>
-                  <th>เวลา</th>
-                  <th>ผู้รับ</th>
-                  <th>Notification</th>
-                  <th>โครงการ/ฟอร์ม</th>
-                  <th>ผลการส่ง</th>
+                  <th className="table-col-date">เวลา</th>
+                  <th className="table-col-meta">ผู้รับ</th>
+                  <th className="table-col-secondary">Notification</th>
+                  <th className="table-col-meta">โครงการ/ฟอร์ม</th>
+                  <th className="table-col-status">ผลการส่ง</th>
                 </tr>
               </thead>
               <tbody>
                 {visibleLogs.map((log) => (
                   <tr key={log.email_log_id}>
-                    <td>{new Date(log.created_at).toLocaleString("th-TH")}</td>
-                    <td>{log.recipient_email}</td>
-                    <td>{log.notification_code}</td>
-                    <td>
-                      <div className="project-title-cell">
+                    <td className="table-col-date">{new Date(log.created_at).toLocaleString("th-TH")}</td>
+                    <td className="table-col-meta">{log.recipient_email}</td>
+                    <td className="table-col-secondary">{log.notification_code}</td>
+                    <td className="table-col-meta">
+                      <div className="table-primary-cell">
                         <p>{log.project_name}</p>
                         <small>{log.form_name}</small>
                       </div>
                     </td>
-                    <td>
-                      <span className="status-pill status-pill-active">
-                        {log.send_status}
-                      </span>
+                    <td className="table-col-status">
+                      <div className="table-status-readout">
+                        <span className="status-pill status-pill-active">{log.send_status}</span>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -216,7 +255,7 @@ function EmailCenterPage({
         </div>
 
         {activeTab === "templates" && editingTemplate ? (
-          <section className="module-placeholder-card" style={{ margin: 14 }}>
+          <section className="module-placeholder-card templates-card-inset">
             <p>
               กำลังแก้ไขเทมเพลต: <strong>{editingTemplate.template_name}</strong>
             </p>

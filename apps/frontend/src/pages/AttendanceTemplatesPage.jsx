@@ -11,6 +11,7 @@ import {
   ChevronRight
 } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
+import TableActionMenu from "../components/TableActionMenu";
 
 const PAGE_SIZE = 10;
 
@@ -78,6 +79,14 @@ function AttendanceTemplatesPage({
   const pagedTemplates = filteredTemplates.slice(startIndex, startIndex + PAGE_SIZE);
   const showingStart = totalRows === 0 ? 0 : startIndex + 1;
   const showingEnd = totalRows === 0 ? 0 : startIndex + pagedTemplates.length;
+  const publishedCount = useMemo(
+    () => templates.filter((template) => template.status === "published").length,
+    [templates]
+  );
+  const draftCount = useMemo(
+    () => templates.filter((template) => template.status === "draft").length,
+    [templates]
+  );
 
   const handleSearch = (event) => {
     setSearchText(event.target.value);
@@ -97,13 +106,28 @@ function AttendanceTemplatesPage({
       onRoleChange={onRoleChange}
     >
       <section className="templates-head">
-        <div>
+        <div className="page-head-body">
+          <p className="page-kicker">Forms</p>
           <h1>ฟอร์มของโครงการ</h1>
-          <p className="table-help-text">
+          <p className="page-summary">
             {project.project_name} ({project.project_code})
           </p>
+          <div className="page-stats">
+            <div className="page-stat">
+              <strong>{templates.length}</strong>
+              <span>ฟอร์มทั้งหมด</span>
+            </div>
+            <div className="page-stat">
+              <strong>{publishedCount}</strong>
+              <span>พร้อมใช้งาน</span>
+            </div>
+            <div className="page-stat">
+              <strong>{draftCount}</strong>
+              <span>ฉบับร่าง</span>
+            </div>
+          </div>
         </div>
-        <div className="inline-action-row">
+        <div className="page-head-actions inline-action-row">
           <button className="ghost-button icon-text-button" type="button" onClick={onBackToProjects}>
             <ArrowLeft size={15} strokeWidth={2} />
             <span>กลับไปหน้าโครงการ</span>
@@ -127,17 +151,18 @@ function AttendanceTemplatesPage({
               onChange={handleSearch}
             />
           </div>
+          <p className="templates-search-meta">พบ {totalRows} ฟอร์มในโครงการนี้</p>
         </div>
 
         <div className="templates-table-wrap">
           <table className="templates-table forms-table">
             <thead>
               <tr>
-                <th>#</th>
-                <th>ชื่อฟอร์ม</th>
-                <th>ลิงก์แบบฟอร์ม</th>
-                <th>สถานะ</th>
-                <th>การจัดการ</th>
+                <th className="table-col-index">#</th>
+                <th className="table-col-primary table-col-left">ชื่อฟอร์ม</th>
+                <th className="table-col-meta">ลิงก์แบบฟอร์ม</th>
+                <th className="table-col-status">สถานะ</th>
+                <th className="table-col-actions-wide">การจัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -154,20 +179,27 @@ function AttendanceTemplatesPage({
 
                   return (
                     <tr key={template.form_id}>
-                      <td>{rowNumber}</td>
-                      <td>{template.form_name}</td>
-                      <td>
+                      <td className="table-col-index">{rowNumber}</td>
+                      <td className="table-col-primary table-col-left">
+                        <div className="table-primary-cell">
+                          <p>{template.form_name}</p>
+                          <small>{template.status === "published" ? "พร้อมเผยแพร่" : "ต้องตรวจสอบก่อนเปิดใช้งาน"}</small>
+                        </div>
+                      </td>
+                      <td className="table-col-meta">
                         <div className="template-url">
                           attendance.com/{template.public_path}?={template.share_key}
                         </div>
                       </td>
-                      <td>
-                        <span className={statusMeta.className}>{statusMeta.label}</span>
+                      <td className="table-col-status">
+                        <div className="table-status-readout">
+                          <span className={statusMeta.className}>{statusMeta.label}</span>
+                        </div>
                       </td>
-                      <td>
-                        <div className="inline-action-row">
+                      <td className="table-col-actions-wide">
+                        <div className="table-actions">
                           <button
-                            className="text-button icon-text-button"
+                            className="table-action-button table-action-button-primary"
                             type="button"
                             onClick={() => onEditTemplate(template.form_id)}
                           >
@@ -175,29 +207,28 @@ function AttendanceTemplatesPage({
                             <span>แก้ไข</span>
                           </button>
                           <button
-                            className="text-button icon-text-button"
+                            className="table-action-button table-action-button-secondary"
                             type="button"
                             onClick={() => onOpenSubmissions(template.form_id)}
                           >
                             <ClipboardList size={13} strokeWidth={2} />
                             <span>คำตอบ</span>
                           </button>
-                          <button
-                            className="text-button icon-text-button"
-                            type="button"
-                            onClick={() => onOpenItems(template.form_id)}
-                          >
-                            <Package size={13} strokeWidth={2} />
-                            <span>ของ/สิทธิ์</span>
-                          </button>
-                          <button
-                            className="text-button icon-text-button"
-                            type="button"
-                            onClick={() => onOpenEmail(template.form_id)}
-                          >
-                            <Mail size={13} strokeWidth={2} />
-                            <span>อีเมล</span>
-                          </button>
+                          <TableActionMenu
+                            label="การจัดการฟอร์มเพิ่มเติม"
+                            items={[
+                              {
+                                label: "ของ/สิทธิ์",
+                                icon: Package,
+                                onClick: () => onOpenItems(template.form_id)
+                              },
+                              {
+                                label: "อีเมล",
+                                icon: Mail,
+                                onClick: () => onOpenEmail(template.form_id)
+                              }
+                            ]}
+                          />
                         </div>
                       </td>
                     </tr>

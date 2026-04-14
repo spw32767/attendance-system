@@ -67,7 +67,27 @@ function SubmissionDetailPage({
       onRoleChange={onRoleChange}
     >
       <section className="templates-head">
-        <h1>รายละเอียดคำตอบ</h1>
+        <div className="page-head-body">
+          <p className="page-kicker">Submission Detail</p>
+          <h1>รายละเอียดคำตอบ</h1>
+          <p className="page-summary">
+            ตรวจสอบข้อมูลผู้ตอบ สถานะการเข้าร่วม และคำตอบรายข้อ พร้อมอัปเดตหมายเหตุได้ทันที
+          </p>
+          <div className="page-stats">
+            <div className="page-stat">
+              <strong>{submission.answers.length}</strong>
+              <span>จำนวนคำตอบ</span>
+            </div>
+            <div className="page-stat">
+              <strong>{submission.attendance_status}</strong>
+              <span>สถานะปัจจุบัน</span>
+            </div>
+            <div className="page-stat">
+              <strong>{submission.check_in_at ? "เช็กอินแล้ว" : "ยังไม่เช็กอิน"}</strong>
+              <span>ความคืบหน้าการเข้าร่วม</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="builder-meta-card">
@@ -162,7 +182,7 @@ function SubmissionDetailPage({
         </div>
       </section>
 
-      <section className="templates-card" style={{ marginTop: 14 }}>
+      <section className="templates-card section-stack-gap-sm">
         <div className="templates-table-wrap">
           <table className="templates-table table-first-col-left">
             <thead>

@@ -55,6 +55,14 @@ function ProjectsPage({
   const pagedProjects = filteredProjects.slice(startIndex, startIndex + PAGE_SIZE);
   const showingStart = totalRows === 0 ? 0 : startIndex + 1;
   const showingEnd = totalRows === 0 ? 0 : startIndex + pagedProjects.length;
+  const activeProjects = useMemo(
+    () => projects.filter((project) => project.is_active).length,
+    [projects]
+  );
+  const projectTypes = useMemo(
+    () => new Set(projects.map((project) => project.project_type)).size,
+    [projects]
+  );
 
   return (
     <AdminLayout
@@ -69,11 +77,33 @@ function ProjectsPage({
       onRoleChange={onRoleChange}
     >
       <section className="templates-head">
-        <h1>จัดการโครงการ</h1>
-        <button className="primary-button icon-text-button" type="button" onClick={onCreateProject}>
-          <Plus size={16} strokeWidth={2.4} />
-          <span>สร้างโครงการ</span>
-        </button>
+        <div className="page-head-body">
+          <p className="page-kicker">Projects</p>
+          <h1>จัดการโครงการ</h1>
+          <p className="page-summary">
+            จัดระเบียบโครงการต้นทางสำหรับฟอร์มทั้งหมด พร้อมควบคุมสถานะและกระจายไปยังหน้าจัดการฟอร์มได้ทันที
+          </p>
+          <div className="page-stats">
+            <div className="page-stat">
+              <strong>{projects.length}</strong>
+              <span>โครงการทั้งหมด</span>
+            </div>
+            <div className="page-stat">
+              <strong>{activeProjects}</strong>
+              <span>กำลังเปิดใช้งาน</span>
+            </div>
+            <div className="page-stat">
+              <strong>{projectTypes}</strong>
+              <span>ประเภทโครงการ</span>
+            </div>
+          </div>
+        </div>
+        <div className="page-head-actions">
+          <button className="primary-button icon-text-button" type="button" onClick={onCreateProject}>
+            <Plus size={16} strokeWidth={2.4} />
+            <span>สร้างโครงการ</span>
+          </button>
+        </div>
       </section>
 
       <section className="templates-card">
@@ -91,17 +121,18 @@ function ProjectsPage({
               }}
             />
           </div>
+          <p className="templates-search-meta">พบ {totalRows} โครงการตามเงื่อนไขปัจจุบัน</p>
         </div>
 
         <div className="templates-table-wrap">
           <table className="templates-table project-table">
             <thead>
               <tr>
-                <th>#</th>
-                <th>โครงการ</th>
-                <th>ประเภท</th>
-                <th>สถานะ</th>
-                <th>การจัดการ</th>
+                <th className="table-col-index">#</th>
+                <th className="table-col-primary table-col-left">โครงการ</th>
+                <th className="table-col-secondary">ประเภท</th>
+                <th className="table-col-status">สถานะ</th>
+                <th className="table-col-actions">การจัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -114,29 +145,31 @@ function ProjectsPage({
               ) : (
                 pagedProjects.map((project, index) => (
                   <tr key={project.project_id}>
-                    <td>{startIndex + index + 1}</td>
-                    <td>
-                      <div className="project-title-cell">
+                    <td className="table-col-index">{startIndex + index + 1}</td>
+                    <td className="table-col-primary table-col-left">
+                      <div className="table-primary-cell">
                         <p>{project.project_name}</p>
                         <small>{project.project_code}</small>
                       </div>
                     </td>
-                    <td>{project.project_type_label || project.project_type}</td>
-                    <td>
-                      <span
-                        className={`status-pill ${
-                          project.is_active
-                            ? "status-pill-active"
-                            : "status-pill-inactive"
-                        }`}
-                      >
-                        {project.is_active ? "ใช้งาน" : "ปิดใช้งาน"}
-                      </span>
+                    <td className="table-col-secondary">{project.project_type_label || project.project_type}</td>
+                    <td className="table-col-status">
+                      <div className="table-status-readout">
+                        <span
+                          className={`status-pill ${
+                            project.is_active
+                              ? "status-pill-active"
+                              : "status-pill-inactive"
+                          }`}
+                        >
+                          {project.is_active ? "ใช้งาน" : "ปิดใช้งาน"}
+                        </span>
+                      </div>
                     </td>
-                    <td>
-                      <div className="inline-action-row">
+                    <td className="table-col-actions">
+                      <div className="table-actions table-actions-nowrap">
                         <button
-                          className="text-button icon-text-button"
+                          className="table-action-button table-action-button-primary"
                           type="button"
                           onClick={() => onOpenProjectForms(project.project_id)}
                         >
@@ -144,7 +177,7 @@ function ProjectsPage({
                           <span>ฟอร์ม</span>
                         </button>
                         <button
-                          className="text-button icon-text-button"
+                          className="table-action-button table-action-button-secondary"
                           type="button"
                           onClick={() => onEditProject(project.project_id)}
                         >

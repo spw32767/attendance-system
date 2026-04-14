@@ -66,149 +66,163 @@ function AdminLayout({
     return groups;
   }, {});
 
+  const resolveNavState = (item) =>
+    item.isActive ??
+    (item.matchPaths?.includes(activePath) ||
+      item.matchPrefixes?.some((prefix) => activePath?.startsWith(prefix)) ||
+      item.path === activePath);
+
   return (
     <div className="admin-shell">
       <div className="admin-aurora admin-aurora-left" />
       <div className="admin-aurora admin-aurora-right" />
 
-      <main className="admin-frame">
-        <header className="admin-topbar">
-          <div className="admin-topbar-left">
-            {onBack ? (
+      <main className={`admin-body${isSidebarCollapsed ? " admin-body-sidebar-collapsed" : ""}`}>
+        {navItems?.length ? (
+          <aside className="admin-sidebar" aria-label="เมนูหลังบ้าน">
+            <div className="admin-sidebar-header">
+              {!isSidebarCollapsed ? (
+                <div>
+                  <p className="admin-sidebar-title">Attendance Admin</p>
+                  <p className="admin-sidebar-caption">Workspace navigation</p>
+                </div>
+              ) : null}
               <button
-                className="icon-only-button icon-neutral-button admin-back-button"
+                className="icon-only-button icon-neutral-button sidebar-collapse-button"
                 type="button"
-                onClick={onBack}
-                title="ย้อนกลับ"
-                aria-label="ย้อนกลับ"
+                onClick={() => setIsSidebarCollapsed((current) => !current)}
+                aria-label={isSidebarCollapsed ? "ขยายเมนู" : "ย่อเมนู"}
+                title={isSidebarCollapsed ? "ขยายเมนู" : "ย่อเมนู"}
               >
-                <ChevronLeft size={18} strokeWidth={2} />
+                {isSidebarCollapsed ? (
+                  <PanelLeftOpen size={16} strokeWidth={1.8} />
+                ) : (
+                  <PanelLeftClose size={16} strokeWidth={1.8} />
+                )}
               </button>
-            ) : null}
-            <nav className="admin-breadcrumb" aria-label="Breadcrumb">
-              {breadcrumbs.map((crumb, index) => (
-                <span key={index} className="admin-breadcrumb-item">
-                  {index > 0 ? (
-                    <span className="admin-breadcrumb-sep">/</span>
+            </div>
+
+            <nav className="admin-sidebar-nav">
+              {Object.entries(groupedNavItems).map(([groupName, items]) => (
+                <section className="admin-nav-group" key={groupName}>
+                  {!isSidebarCollapsed ? (
+                    <p className="admin-nav-group-title">{groupName}</p>
                   ) : null}
-                  <span>{crumb}</span>
-                </span>
+                  {items.map((item) => {
+                    const isActive = resolveNavState(item);
+                    const IconComponent = NAV_ICON_MAP[item.icon] || Circle;
+
+                    return (
+                      <button
+                        key={item.path}
+                        className={`admin-nav-button${isActive ? " admin-nav-button-active" : ""}`}
+                        type="button"
+                        onClick={() => onNavigate?.(item.path)}
+                        title={item.label}
+                        data-label={item.label}
+                        aria-current={isActive ? "page" : undefined}
+                      >
+                        <span className="admin-nav-button-icon">
+                          <IconComponent size={15} strokeWidth={isActive ? 2.2 : 1.8} />
+                        </span>
+                        <span className="admin-nav-button-label">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </section>
               ))}
             </nav>
-          </div>
-          <div className="admin-topbar-actions">
-            {/* Theme toggle switch */}
-            <button
-              className="theme-toggle-switch"
-              type="button"
-              onClick={onToggleTheme}
-              aria-pressed={theme === "dark"}
-              title={theme === "dark" ? "เปลี่ยนเป็นธีมสว่าง" : "เปลี่ยนเป็นธีมมืด"}
-            >
-              <Sun
-                size={15}
-                className={`theme-toggle-icon theme-icon-sun${
-                  theme === "light" ? " theme-icon-active" : ""
-                }`}
-              />
-              <span className="theme-toggle-track">
-                <span className="theme-toggle-thumb" />
-              </span>
-              <Moon
-                size={15}
-                className={`theme-toggle-icon theme-icon-moon${
-                  theme === "dark" ? " theme-icon-active" : ""
-                }`}
-              />
-            </button>
+          </aside>
+        ) : null}
 
-            {/* Logout icon button */}
-            <button
-              className="icon-only-button icon-neutral-button topbar-logout-button"
-              type="button"
-              onClick={onLogout}
-              title="ออกจากระบบ"
-              aria-label="ออกจากระบบ"
-            >
-              <LogOut size={17} strokeWidth={2} />
-            </button>
-
-            {onRoleChange ? (
-              <select
-                className="select-control role-select"
-                value={currentRole || "admin"}
-                onChange={(event) => onRoleChange(event.target.value)}
-              >
-                <option value="admin">admin</option>
-                <option value="staff">staff</option>
-                <option value="scanner">scanner</option>
-              </select>
-            ) : null}
-          </div>
-        </header>
-
-        <div
-          className={`admin-body${
-            isSidebarCollapsed ? " admin-body-sidebar-collapsed" : ""
-          }`}
-        >
-          {navItems?.length ? (
-            <aside className="admin-sidebar" aria-label="เมนูหลังบ้าน">
-              <div className="admin-sidebar-header">
-                <p className="admin-sidebar-title">Navigation</p>
+        <div className="admin-stage">
+          <header className="admin-topbar">
+            <div className="admin-topbar-left">
+              {onBack ? (
                 <button
-                  className="icon-only-button icon-neutral-button sidebar-collapse-button"
+                  className="icon-only-button icon-neutral-button admin-back-button"
                   type="button"
-                  onClick={() => setIsSidebarCollapsed((current) => !current)}
-                  aria-label={isSidebarCollapsed ? "ขยายเมนู" : "ย่อเมนู"}
-                  title={isSidebarCollapsed ? "ขยายเมนู" : "ย่อเมนู"}
+                  onClick={onBack}
+                  title="ย้อนกลับ"
+                  aria-label="ย้อนกลับ"
                 >
-                  {isSidebarCollapsed ? (
-                    <PanelLeftOpen size={16} strokeWidth={1.8} />
-                  ) : (
-                    <PanelLeftClose size={16} strokeWidth={1.8} />
-                  )}
+                  <ChevronLeft size={18} strokeWidth={2} />
                 </button>
-              </div>
-
-              <nav className="admin-sidebar-nav">
-                {Object.entries(groupedNavItems).map(([groupName, items]) => (
-                  <section className="admin-nav-group" key={groupName}>
-                    {!isSidebarCollapsed ? (
-                      <p className="admin-nav-group-title">{groupName}</p>
+              ) : null}
+              <nav className="admin-breadcrumb" aria-label="Breadcrumb">
+                {breadcrumbs.map((crumb, index) => (
+                  <span key={index} className="admin-breadcrumb-item">
+                    {index > 0 ? (
+                      <span className="admin-breadcrumb-sep">/</span>
                     ) : null}
-                    {items.map((item) => {
-                      const isActive =
-                        item.isActive ??
-                        (item.matchPaths?.includes(activePath) ||
-                          item.matchPrefixes?.some((prefix) => activePath?.startsWith(prefix)) ||
-                          item.path === activePath);
-
-                      const IconComponent = NAV_ICON_MAP[item.icon] || Circle;
-
-                      return (
-                        <button
-                          key={item.path}
-                          className={`admin-nav-button${isActive ? " admin-nav-button-active" : ""}`}
-                          type="button"
-                          onClick={() => onNavigate?.(item.path)}
-                          title={item.label}
-                          data-label={item.label}
-                        >
-                          <span className="admin-nav-button-icon">
-                            <IconComponent
-                              size={15}
-                              strokeWidth={isActive ? 2.2 : 1.8}
-                            />
-                          </span>
-                          <span className="admin-nav-button-label">{item.label}</span>
-                        </button>
-                      );
-                    })}
-                  </section>
+                    <span>{crumb}</span>
+                  </span>
                 ))}
               </nav>
-            </aside>
+            </div>
+            <div className="admin-topbar-actions">
+              {/* Theme toggle switch */}
+              <button
+                className={`theme-toggle-switch${theme === "dark" ? " theme-toggle-switch-active" : ""}`}
+                type="button"
+                onClick={onToggleTheme}
+                aria-pressed={theme === "dark"}
+                title={theme === "dark" ? "เปลี่ยนเป็นธีมสว่าง" : "เปลี่ยนเป็นธีมมืด"}
+              >
+                <span className="theme-toggle-switch-icon theme-toggle-switch-icon-sun" aria-hidden="true">
+                  <Sun size={12} strokeWidth={2} />
+                </span>
+                <span className="theme-toggle-switch-icon theme-toggle-switch-icon-moon" aria-hidden="true">
+                  <Moon size={12} strokeWidth={2} />
+                </span>
+                <span className="theme-toggle-switch-thumb" aria-hidden="true" />
+              </button>
+
+              {/* Logout icon button */}
+              <button
+                className="icon-only-button icon-neutral-button topbar-logout-button"
+                type="button"
+                onClick={onLogout}
+                title="ออกจากระบบ"
+                aria-label="ออกจากระบบ"
+              >
+                <LogOut size={17} strokeWidth={2} />
+              </button>
+
+              {onRoleChange ? (
+                <select
+                  className="select-control role-select"
+                  value={currentRole || "admin"}
+                  onChange={(event) => onRoleChange(event.target.value)}
+                >
+                  <option value="admin">admin</option>
+                  <option value="staff">staff</option>
+                  <option value="scanner">scanner</option>
+                </select>
+              ) : null}
+            </div>
+          </header>
+
+          {navItems?.length ? (
+            <nav className="admin-mobile-tabs" aria-label="เมนูบนมือถือ">
+              {navItems.map((item) => {
+                const isActive = resolveNavState(item);
+                const IconComponent = NAV_ICON_MAP[item.icon] || Circle;
+
+                return (
+                  <button
+                    key={item.path}
+                    className={`admin-mobile-tab${isActive ? " admin-mobile-tab-active" : ""}`}
+                    type="button"
+                    onClick={() => onNavigate?.(item.path)}
+                    aria-current={isActive ? "page" : undefined}
+                  >
+                    <IconComponent size={14} strokeWidth={isActive ? 2.2 : 1.9} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
           ) : null}
 
           <section className="admin-content">{children}</section>

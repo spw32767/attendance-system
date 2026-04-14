@@ -81,6 +81,16 @@ function SubmissionsPage({
     });
   }, [submissions, filterProjectId, filterFormId, searchText]);
 
+  const checkedInCount = useMemo(
+    () => submissions.filter((submission) => submission.attendance_status === "present").length,
+    [submissions]
+  );
+
+  const completedCount = useMemo(
+    () => submissions.filter((submission) => submission.attendance_status === "completed").length,
+    [submissions]
+  );
+
   return (
     <AdminLayout
       breadcrumbs={["แอดมิน", "คำตอบแบบฟอร์ม"]}
@@ -94,7 +104,27 @@ function SubmissionsPage({
       onRoleChange={onRoleChange}
     >
       <section className="templates-head">
-        <h1>คำตอบแบบฟอร์ม</h1>
+        <div className="page-head-body">
+          <p className="page-kicker">Submissions</p>
+          <h1>คำตอบแบบฟอร์ม</h1>
+          <p className="page-summary">
+            ติดตามการส่งคำตอบ การเช็กอิน และสถานะการเข้าร่วมจากทุกโครงการในมุมมองเดียว
+          </p>
+          <div className="page-stats">
+            <div className="page-stat">
+              <strong>{submissions.length}</strong>
+              <span>คำตอบทั้งหมด</span>
+            </div>
+            <div className="page-stat">
+              <strong>{checkedInCount}</strong>
+              <span>เช็กอินแล้ว</span>
+            </div>
+            <div className="page-stat">
+              <strong>{completedCount}</strong>
+              <span>เสร็จสิ้น</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="templates-card">
@@ -139,23 +169,27 @@ function SubmissionsPage({
               onChange={(event) => setSearchText(event.target.value)}
             />
           </div>
+          <p className="templates-search-meta submissions-search-meta">
+            แสดง {filteredRows.length} จาก {submissions.length} คำตอบ
+          </p>
         </div>
 
         <div className="templates-table-wrap">
           <table className="templates-table submissions-table">
             <thead>
               <tr>
-                <th>Submission Code</th>
-                <th>ผู้ตอบ</th>
-                <th>โครงการ/ฟอร์ม</th>
-                <th>เวลา</th>
-                <th>สถานะ</th>
+                <th className="table-col-secondary">Submission Code</th>
+                <th className="table-col-primary table-col-left">ผู้ตอบ</th>
+                <th className="table-col-meta">โครงการ/ฟอร์ม</th>
+                <th className="table-col-date">เวลา</th>
+                <th className="table-col-status">สถานะ</th>
+                <th className="table-col-actions">การจัดการ</th>
               </tr>
             </thead>
             <tbody>
               {filteredRows.length === 0 ? (
                 <tr>
-                  <td className="empty-row" colSpan={5}>
+                  <td className="empty-row" colSpan={6}>
                     ไม่พบข้อมูลคำตอบ
                   </td>
                 </tr>
@@ -166,30 +200,23 @@ function SubmissionsPage({
 
                   return (
                     <tr key={row.submission_id}>
-                      <td>
-                        <button
-                          className="text-button icon-text-button"
-                          type="button"
-                          onClick={() => onOpenSubmission(row.submission_id)}
-                        >
-                          <ExternalLink size={13} strokeWidth={2} />
-                          <span>{row.submission_code}</span>
-                        </button>
+                      <td className="table-col-secondary">
+                        <span className="table-code">{row.submission_code}</span>
                       </td>
-                      <td>
-                        <div className="project-title-cell">
+                      <td className="table-col-primary table-col-left">
+                        <div className="table-primary-cell">
                           <p>{row.respondent_name}</p>
                           <small>{row.respondent_email}</small>
                         </div>
                       </td>
-                      <td>
-                        <div className="project-title-cell">
+                      <td className="table-col-meta">
+                        <div className="table-primary-cell">
                           <p>{row.project_name}</p>
                           <small>{row.form_name}</small>
                         </div>
                       </td>
-                      <td>
-                        <div className="project-title-cell">
+                      <td className="table-col-date">
+                        <div className="table-primary-cell">
                           <p>{new Date(row.submitted_at).toLocaleString("th-TH")}</p>
                           <small>
                             {row.check_in_at
@@ -198,8 +225,22 @@ function SubmissionsPage({
                           </small>
                         </div>
                       </td>
-                      <td>
-                        <span className={statusMeta.className}>{statusMeta.label}</span>
+                      <td className="table-col-status">
+                        <div className="table-status-readout">
+                          <span className={statusMeta.className}>{statusMeta.label}</span>
+                        </div>
+                      </td>
+                      <td className="table-col-actions">
+                        <div className="table-actions">
+                          <button
+                            className="table-action-button table-action-button-primary"
+                            type="button"
+                            onClick={() => onOpenSubmission(row.submission_id)}
+                          >
+                            <ExternalLink size={13} strokeWidth={2} />
+                            <span>ดูรายละเอียด</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
