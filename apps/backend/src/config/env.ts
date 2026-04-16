@@ -15,6 +15,6 @@ export const env = {
   dbPort: toNumber(process.env.DB_PORT, 3306),
   dbUser: process.env.DB_USER ?? "root",
   dbPassword: process.env.DB_PASSWORD ?? "",
-  dbName: process.env.DB_NAME ?? "attendance_db",
+  dbName: process.env.DB_NAME ?? "drnadech_attendance_system",
   dbConnectionLimit: toNumber(process.env.DB_CONNECTION_LIMIT, 10)
 };

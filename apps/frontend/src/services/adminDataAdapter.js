@@ -1,6 +1,8 @@
 import { mockAdminService } from "./mockAdminService";
+import { apiAdminService } from "./apiAdminService";
 
-const provider = mockAdminService;
+const providerName = import.meta.env.VITE_DATA_PROVIDER || "api";
+const provider = providerName === "mock" ? mockAdminService : apiAdminService;
 
 export const adminDataAdapter = {
   listProjects: (...args) => provider.listProjects(...args),
