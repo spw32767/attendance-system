@@ -635,6 +635,19 @@ function App() {
     return result;
   };
 
+  const handleCreateAdminSubmission = async (formId, payload) => {
+    const result = await adminDataAdapter.createAdminSubmission(formId, payload);
+    const [nextSubmissions, nextClaims, nextEmailLogs] = await Promise.all([
+      adminDataAdapter.listSubmissions(),
+      adminDataAdapter.listClaims(),
+      adminDataAdapter.listEmailLogs()
+    ]);
+    setSubmissions(nextSubmissions);
+    setClaims(nextClaims);
+    setEmailLogs(nextEmailLogs);
+    return result;
+  };
+
   useEffect(() => {
     if (route.id !== ROUTE_ID_SUBMISSION_DETAIL) {
       setSubmissionDetail(null);
@@ -940,6 +953,9 @@ function App() {
           navigate(queryString ? `${PATH_SUBMISSIONS}?${queryString}` : PATH_SUBMISSIONS);
         }}
         onOpenSubmission={(submissionId) => navigate(`/admin/submissions/${submissionId}`)}
+        onUpdateSubmission={handleUpdateSubmission}
+        onCreateAdminSubmission={handleCreateAdminSubmission}
+        onLoadFormDraft={handleLoadFormDraft}
         onLogout={() => navigate(PATH_LOGIN, { replace: true })}
         theme={theme}
         onToggleTheme={toggleTheme}

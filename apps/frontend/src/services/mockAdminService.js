@@ -345,6 +345,122 @@ const toFormSummary = (formId, draft) => {
   };
 };
 
+const createSubmissionFromPayload = (form, payload, options = {}) => {
+  const draft = state.formDrafts[String(form.form_id)] || createDefaultDraft(form.project_id);
+  const answers = payload?.answers || {};
+
+  const fullNameField = draft.fields.find((field) => field.field_usage === "full_name");
+  const firstNameField = draft.fields.find((field) => field.field_usage === "first_name");
+  const lastNameField = draft.fields.find((field) => field.field_usage === "last_name");
+  const emailField = draft.fields.find((field) => field.field_usage === "email");
+
+  const respondentName =
+    answers[fullNameField?.id] ||
+    [answers[firstNameField?.id], answers[lastNameField?.id]].filter(Boolean).join(" ") ||
+    "ผู้ตอบแบบฟอร์ม";
+
+  const respondentEmail = answers[emailField?.id] || "unknown@example.com";
+
+  const nextSubmissionId =
+    state.submissions.length > 0
+      ? Math.max(...state.submissions.map((item) => Number(item.submission_id))) + 1
+      : 1;
+  const submissionCode = toSubmissionCode(form.form_id, nextSubmissionId);
+  const nowIso = new Date().toISOString();
+  const shouldMarkPresent = options.markPresent === true;
+
+  const normalizedAnswers = (draft.fields || []).map((field, index) => {
+    const rawValue = answers[field.id];
+    let value = "-";
+
+    if (Array.isArray(rawValue)) {
+      value = rawValue.join(", ") || "-";
+    } else if (rawValue instanceof FileList) {
+      value = rawValue.length ? Array.from(rawValue).map((file) => file.name).join(", ") : "-";
+    } else if (rawValue !== undefined && rawValue !== null && rawValue !== "") {
+      value = String(rawValue);
+    }
+
+    return {
+      field_id: field.id,
+      field_label: field.field_label || `คำถาม ${index + 1}`,
+      field_type: field.field_type,
+      is_required: Boolean(field.is_required),
+      value
+    };
+  });
+
+  state.submissionAnswersById[String(nextSubmissionId)] = normalizedAnswers;
+
+  state.submissions.push({
+    submission_id: nextSubmissionId,
+    project_id: form.project_id,
+    form_id: String(form.form_id),
+    submission_code: submissionCode,
+    respondent_name: respondentName,
+    respondent_email: respondentEmail,
+    attendance_status: shouldMarkPresent ? "present" : "submitted",
+    submitted_at: nowIso,
+    check_in_at: shouldMarkPresent ? nowIso : "",
+    check_out_at: "",
+    note: options.note || "",
+    source_type: options.sourceType || "public_form"
+  });
+
+  const relatedItems = state.items.filter(
+    (item) => String(item.form_id) === String(form.form_id) && Boolean(item.is_active)
+  );
+
+  relatedItems.forEach((item, itemIndex) => {
+    const nextClaimId =
+      state.claims.length > 0
+        ? Math.max(...state.claims.map((claim) => Number(claim.claim_id))) + 1
+        : 1;
+
+    state.claims.push({
+      claim_id: nextClaimId,
+      project_id: form.project_id,
+      form_id: String(form.form_id),
+      item_id: item.item_id,
+      submission_code: submissionCode,
+      claim_token: `CLAIM-${String(form.form_id).padStart(3, "0")}-${String(nextSubmissionId).padStart(4, "0")}-${itemIndex + 1}`,
+      receive_status: "pending",
+      received_at: ""
+    });
+  });
+
+  const activeTemplate = state.emailTemplates.find(
+    (template) =>
+      String(template.form_id) === String(form.form_id) && Boolean(template.is_active)
+  );
+
+  if (activeTemplate) {
+    const nextEmailLogId =
+      state.emailLogs.length > 0
+        ? Math.max(...state.emailLogs.map((log) => Number(log.email_log_id))) + 1
+        : 1;
+
+    state.emailLogs.push({
+      email_log_id: nextEmailLogId,
+      project_id: form.project_id,
+      form_id: String(form.form_id),
+      recipient_email: respondentEmail,
+      notification_code: activeTemplate.notification_code,
+      send_status: "sent",
+      created_at: new Date().toISOString()
+    });
+  }
+
+  return {
+    ok: true,
+    status: shouldMarkPresent ? "present" : "submitted",
+    submissionId: nextSubmissionId,
+    submissionCode,
+    successTitle: draft.success_title || form.success_title,
+    successMessage: draft.success_message || form.success_message
+  };
+};
+
 export const mockAdminService = {
   async listProjects() {
     return clone(
@@ -559,116 +675,26 @@ export const mockAdminService = {
       return { ok: false, status };
     }
 
-    const draft = state.formDrafts[String(form.form_id)] || createDefaultDraft(form.project_id);
-    const answers = payload?.answers || {};
-
-    const fullNameField = draft.fields.find((field) => field.field_usage === "full_name");
-    const firstNameField = draft.fields.find((field) => field.field_usage === "first_name");
-    const lastNameField = draft.fields.find((field) => field.field_usage === "last_name");
-    const emailField = draft.fields.find((field) => field.field_usage === "email");
-
-    const respondentName =
-      answers[fullNameField?.id] ||
-      [answers[firstNameField?.id], answers[lastNameField?.id]].filter(Boolean).join(" ") ||
-      "ผู้ตอบแบบฟอร์ม";
-
-    const respondentEmail = answers[emailField?.id] || "unknown@example.com";
-
-    const nextSubmissionId =
-      state.submissions.length > 0
-        ? Math.max(...state.submissions.map((item) => Number(item.submission_id))) + 1
-        : 1;
-    const submissionCode = toSubmissionCode(form.form_id, nextSubmissionId);
-
-    const normalizedAnswers = (draft.fields || []).map((field, index) => {
-      const rawValue = answers[field.id];
-      let value = "-";
-
-      if (Array.isArray(rawValue)) {
-        value = rawValue.join(", ") || "-";
-      } else if (rawValue instanceof FileList) {
-        value = rawValue.length ? Array.from(rawValue).map((file) => file.name).join(", ") : "-";
-      } else if (rawValue !== undefined && rawValue !== null && rawValue !== "") {
-        value = String(rawValue);
-      }
-
-      return {
-        field_id: field.id,
-        field_label: field.field_label || `คำถาม ${index + 1}`,
-        field_type: field.field_type,
-        is_required: Boolean(field.is_required),
-        value
-      };
+    return createSubmissionFromPayload(form, payload, {
+      sourceType: "public_form",
+      markPresent: false,
+      note: ""
     });
+  },
 
-    state.submissionAnswersById[String(nextSubmissionId)] = normalizedAnswers;
+  async createAdminSubmission(formId, payload) {
+    const form = state.forms.find((item) => String(item.form_id) === String(formId));
+    const status = toPublicFormStatus(form);
 
-    state.submissions.push({
-      submission_id: nextSubmissionId,
-      project_id: form.project_id,
-      form_id: String(form.form_id),
-      submission_code: submissionCode,
-      respondent_name: respondentName,
-      respondent_email: respondentEmail,
-      attendance_status: "submitted",
-      submitted_at: new Date().toISOString(),
-      check_in_at: "",
-      check_out_at: "",
-      note: "",
-      source_type: "public_form"
-    });
-
-    const relatedItems = state.items.filter(
-      (item) => String(item.form_id) === String(form.form_id) && Boolean(item.is_active)
-    );
-
-    relatedItems.forEach((item, itemIndex) => {
-      const nextClaimId =
-        state.claims.length > 0
-          ? Math.max(...state.claims.map((claim) => Number(claim.claim_id))) + 1
-          : 1;
-
-      state.claims.push({
-        claim_id: nextClaimId,
-        project_id: form.project_id,
-        form_id: String(form.form_id),
-        item_id: item.item_id,
-        submission_code: submissionCode,
-        claim_token: `CLAIM-${String(form.form_id).padStart(3, "0")}-${String(nextSubmissionId).padStart(4, "0")}-${itemIndex + 1}`,
-        receive_status: "pending",
-        received_at: ""
-      });
-    });
-
-    const activeTemplate = state.emailTemplates.find(
-      (template) =>
-        String(template.form_id) === String(form.form_id) && Boolean(template.is_active)
-    );
-
-    if (activeTemplate) {
-      const nextEmailLogId =
-        state.emailLogs.length > 0
-          ? Math.max(...state.emailLogs.map((log) => Number(log.email_log_id))) + 1
-          : 1;
-
-      state.emailLogs.push({
-        email_log_id: nextEmailLogId,
-        project_id: form.project_id,
-        form_id: String(form.form_id),
-        recipient_email: respondentEmail,
-        notification_code: activeTemplate.notification_code,
-        send_status: "sent",
-        created_at: new Date().toISOString()
-      });
+    if (!form || status !== "open") {
+      return { ok: false, status };
     }
 
-    return {
-      ok: true,
-      status: "submitted",
-      submissionCode,
-      successTitle: draft.success_title || form.success_title,
-      successMessage: draft.success_message || form.success_message
-    };
+    return createSubmissionFromPayload(form, payload, {
+      sourceType: "admin_created",
+      markPresent: payload?.mark_present === undefined ? true : Boolean(payload.mark_present),
+      note: typeof payload?.note === "string" ? payload.note : ""
+    });
   },
 
   async listItems() {

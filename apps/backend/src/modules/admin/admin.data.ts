@@ -1086,6 +1086,12 @@ const buildSubmissionCode = async (formId: number, connection: PoolConnection) =
   };
 };
 
+type SubmitFormOptions = {
+  sourceType: "public_form" | "admin_created";
+  note?: string | null;
+  markPresent?: boolean;
+};
+
 const resolveAnswerValue = (
   fieldType: string,
   rawValue: unknown,
@@ -1115,36 +1121,12 @@ const resolveAnswerValue = (
   return rawValue == null ? "" : String(rawValue);
 };
 
-export const submitPublicForm = async (publicPath: string, payload: AnyPayload) =>
-  withTransaction(async (connection) => {
-    const formRows = await queryRows<AnyRow>(
-      `
-        SELECT
-          form_id,
-          project_id,
-          form_name,
-          public_path,
-          form_type,
-          status,
-          start_at,
-          end_at,
-          success_title,
-          success_message,
-          settings_json
-        FROM form_forms
-        WHERE public_path = ?
-          AND deleted_at IS NULL
-        LIMIT 1
-      `,
-      [publicPath],
-      connection
-    );
-
-    const formRow = formRows[0];
-    if (!formRow) {
-      return { ok: false, status: "not_found" };
-    }
-
+const submitFormForRow = async (
+  formRow: AnyRow,
+  payload: AnyPayload,
+  options: SubmitFormOptions,
+  connection: PoolConnection
+) => {
     const formSummary = mapFormSummary({ ...formRow, project_name: "" });
     const status = getFormStatus(formSummary);
     if (status !== "open") {
@@ -1169,6 +1151,8 @@ export const submitPublicForm = async (publicPath: string, payload: AnyPayload) 
       Number(formRow.form_id),
       connection
     );
+    const shouldMarkPresent = options.markPresent === true;
+    const attendanceStatus = shouldMarkPresent ? "present" : "submitted";
 
     let respondentName = "ผู้ตอบแบบฟอร์ม";
     let respondentEmail = "unknown@example.com";
@@ -1207,11 +1191,20 @@ export const submitPublicForm = async (publicPath: string, payload: AnyPayload) 
           submission_code,
           submitted_at,
           attendance_status,
+          check_in_at,
           source_type,
           notes
-        ) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
+        ) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
       `,
-      [nextSubmissionId, formRow.form_id, submissionCode, "submitted", "public_form", null],
+      [
+        nextSubmissionId,
+        formRow.form_id,
+        submissionCode,
+        attendanceStatus,
+        shouldMarkPresent ? new Date() : null,
+        options.sourceType,
+        options.note || null
+      ],
       connection
     );
 
@@ -1390,11 +1383,96 @@ export const submitPublicForm = async (publicPath: string, payload: AnyPayload) 
 
     return {
       ok: true,
-      status: "submitted",
+      status: attendanceStatus,
+      submissionId: nextSubmissionId,
       submissionCode,
       successTitle: formSummary.success_title,
       successMessage: formSummary.success_message
     };
+};
+
+export const submitPublicForm = async (publicPath: string, payload: AnyPayload) =>
+  withTransaction(async (connection) => {
+    const formRows = await queryRows<AnyRow>(
+      `
+        SELECT
+          form_id,
+          project_id,
+          form_name,
+          public_path,
+          form_type,
+          status,
+          start_at,
+          end_at,
+          success_title,
+          success_message,
+          settings_json
+        FROM form_forms
+        WHERE public_path = ?
+          AND deleted_at IS NULL
+        LIMIT 1
+      `,
+      [publicPath],
+      connection
+    );
+
+    const formRow = formRows[0];
+    if (!formRow) {
+      return { ok: false, status: "not_found" };
+    }
+
+    return submitFormForRow(
+      formRow,
+      payload,
+      {
+        sourceType: "public_form",
+        note: null,
+        markPresent: false
+      },
+      connection
+    );
+  });
+
+export const createAdminSubmission = async (formId: number, payload: AnyPayload) =>
+  withTransaction(async (connection) => {
+    const formRows = await queryRows<AnyRow>(
+      `
+        SELECT
+          form_id,
+          project_id,
+          form_name,
+          public_path,
+          form_type,
+          status,
+          start_at,
+          end_at,
+          success_title,
+          success_message,
+          settings_json
+        FROM form_forms
+        WHERE form_id = ?
+          AND deleted_at IS NULL
+        LIMIT 1
+      `,
+      [formId],
+      connection
+    );
+
+    const formRow = formRows[0];
+    if (!formRow) {
+      return { ok: false, status: "not_found" };
+    }
+
+    return submitFormForRow(
+      formRow,
+      payload,
+      {
+        sourceType: "admin_created",
+        note: typeof payload.note === "string" ? payload.note : null,
+        markPresent: payload.mark_present === undefined ? true : Boolean(payload.mark_present)
+      },
+      connection
+    );
   });
 
 export const listItems = async () => {

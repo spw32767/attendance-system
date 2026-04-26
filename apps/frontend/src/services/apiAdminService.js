@@ -120,6 +120,12 @@ export const apiAdminService = {
       body: normalizePublicPayload(payload)
     }),
 
+  createAdminSubmission: (formId, payload) =>
+    request(`/admin/forms/${formId}/submissions`, {
+      method: "POST",
+      body: normalizePublicPayload(payload)
+    }),
+
   listItems: () => readCollection("/admin/items"),
   listClaims: () => readCollection("/admin/claims"),
 

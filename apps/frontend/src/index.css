@@ -1855,6 +1855,12 @@ button:disabled {
   font-weight: 600;
 }
 
+.notice-banner.notice-banner-error {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--surface-base));
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface-base));
+  color: color-mix(in srgb, var(--danger) 80%, var(--text-soft));
+}
+
 .builder-meta-card,
 .builder-editor-panel {
   border: 1px solid var(--line-soft);

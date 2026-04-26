@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from "fastify";
 import {
+  createAdminSubmission,
   getFormDraft,
   getSubmissionDetail,
   listAdminLoginLogs,
@@ -93,6 +94,12 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
     const body = (request.body || {}) as Record<string, any>;
     await updateSubmission(Number(submissionId), body);
     return { ok: true };
+  });
+
+  fastify.post("/admin/forms/:formId/submissions", async (request) => {
+    const formId = toNumber((request.params as Record<string, string>).formId);
+    const body = (request.body || {}) as Record<string, any>;
+    return createAdminSubmission(Number(formId), body);
   });
 
   fastify.get("/public/forms/:publicPath", async (request) => {
