@@ -1116,6 +1116,13 @@ button:disabled {
   display: grid;
   place-items: center;
   padding: 24px;
+  background: var(--surface-soft);
+  position: relative;
+}
+
+.public-form-shell.is-submitting,
+.public-form-shell.is-submitting * {
+  cursor: progress !important;
 }
 
 .public-form-card {
@@ -2608,6 +2615,20 @@ button:disabled {
   margin: 0;
   display: grid;
   gap: 12px;
+}
+
+.public-form-submit-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.public-form-submit-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.01);
 }
 
 .google-preview-form-card,

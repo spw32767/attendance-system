@@ -47,6 +47,7 @@ function PublicFormPage({
   const [formData, setFormData] = useState(null);
   const [answers, setAnswers] = useState({});
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -106,18 +107,27 @@ function PublicFormPage({
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (isSubmitting) {
+      return;
+    }
+
     if (!validate()) {
       return;
     }
 
-    const result = await onSubmitPublicForm(publicPath, { answers });
-    if (!result.ok) {
-      setFormStatus(result.status || "closed");
-      return;
-    }
+    setIsSubmitting(true);
+    try {
+      const result = await onSubmitPublicForm(publicPath, { answers });
+      if (!result.ok) {
+        setFormStatus(result.status || "closed");
+        return;
+      }
 
-    if (onNavigateSuccess) {
-      onNavigateSuccess(result);
+      if (onNavigateSuccess) {
+        onNavigateSuccess(result);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -148,7 +158,7 @@ function PublicFormPage({
   }
 
   return (
-    <div className="public-form-shell page-enter">
+    <div className={`public-form-shell page-enter${isSubmitting ? " is-submitting" : ""}`}>
       <section className="google-preview-surface">
         <article className="google-preview-form-card">
           <div className="google-preview-form-accent" />
@@ -173,6 +183,7 @@ function PublicFormPage({
                   className="input-control"
                   value={answers[field.id] || ""}
                   placeholder={field.placeholder || "คำตอบสั้น"}
+                  disabled={isSubmitting}
                   onChange={(event) => setAnswer(field.id, event.target.value)}
                 />
               ) : null}
@@ -183,6 +194,7 @@ function PublicFormPage({
                   rows={3}
                   value={answers[field.id] || ""}
                   placeholder={field.placeholder || "คำตอบยาว"}
+                  disabled={isSubmitting}
                   onChange={(event) => setAnswer(field.id, event.target.value)}
                 />
               ) : null}
@@ -197,6 +209,7 @@ function PublicFormPage({
                           type="radio"
                           name={`field_${field.id}`}
                           checked={(answers[field.id] || "") === optionValue}
+                          disabled={isSubmitting}
                           onChange={() => setAnswer(field.id, optionValue)}
                         />
                         <span>{option.option_label}</span>
@@ -218,6 +231,7 @@ function PublicFormPage({
                         <input
                           type="checkbox"
                           checked={checked}
+                          disabled={isSubmitting}
                           onChange={(event) => {
                             if (event.target.checked) {
                               setAnswer(field.id, [...currentValues, optionValue]);
@@ -241,6 +255,7 @@ function PublicFormPage({
                 <select
                   className="select-control"
                   value={answers[field.id] || ""}
+                  disabled={isSubmitting}
                   onChange={(event) => setAnswer(field.id, event.target.value)}
                 >
                   <option value="">เลือกคำตอบ</option>
@@ -256,6 +271,7 @@ function PublicFormPage({
                 <select
                   className="select-control"
                   value={answers[field.id] || ""}
+                  disabled={isSubmitting}
                   onChange={(event) => setAnswer(field.id, event.target.value)}
                 >
                   <option value="">เลือกคะแนน</option>
@@ -280,6 +296,7 @@ function PublicFormPage({
                   className="input-control"
                   type="date"
                   value={answers[field.id] || ""}
+                  disabled={isSubmitting}
                   onChange={(event) => setAnswer(field.id, event.target.value)}
                 />
               ) : null}
@@ -289,6 +306,7 @@ function PublicFormPage({
                   className="input-control"
                   type="time"
                   value={answers[field.id] || ""}
+                  disabled={isSubmitting}
                   onChange={(event) => setAnswer(field.id, event.target.value)}
                 />
               ) : null}
@@ -298,6 +316,7 @@ function PublicFormPage({
                   <input
                     className="input-control"
                     type="file"
+                    disabled={isSubmitting}
                     multiple={(field.settings_json?.max_file_count || 1) > 1}
                     onChange={(event) => setAnswer(field.id, event.target.files)}
                   />
@@ -308,13 +327,14 @@ function PublicFormPage({
             </article>
           ))}
 
-          <article className="google-preview-question-card">
-            <button className="primary-button" type="submit">
-              ส่งข้อมูล
+          <div className="public-form-submit-row">
+            <button className="primary-button" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "กำลังส่งข้อมูล..." : "ส่งข้อมูล"}
             </button>
-          </article>
+          </div>
         </form>
       </section>
+      {isSubmitting ? <div className="public-form-submit-overlay" role="presentation" /> : null}
     </div>
   );
 }
