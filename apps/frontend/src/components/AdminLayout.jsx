@@ -114,7 +114,7 @@ function AdminLayout({
 
                     return (
                       <button
-                        key={item.path}
+                        key={item.routeKey || `${item.path}-${item.label}`}
                         className={`admin-nav-button${isActive ? " admin-nav-button-active" : ""}`}
                         type="button"
                         onClick={() => onNavigate?.(item.path)}
@@ -211,7 +211,7 @@ function AdminLayout({
 
                 return (
                   <button
-                    key={item.path}
+                    key={item.routeKey || `${item.path}-${item.label}`}
                     className={`admin-mobile-tab${isActive ? " admin-mobile-tab-active" : ""}`}
                     type="button"
                     onClick={() => onNavigate?.(item.path)}

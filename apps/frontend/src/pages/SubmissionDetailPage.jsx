@@ -144,18 +144,20 @@ function SubmissionDetailPage({
         </div>
 
         <div className="inline-action-row" style={{ marginTop: 12 }}>
-          <button
-            className="ghost-button"
-            type="button"
-            onClick={() =>
-              onUpdateSubmission(submission.submission_id, {
-                attendance_status: "present",
-                check_in_at: new Date().toISOString()
-              })
-            }
-          >
-            เช็กอิน
-          </button>
+          {currentRole === "admin" ? (
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={() =>
+                onUpdateSubmission(submission.submission_id, {
+                  attendance_status: "present",
+                  check_in_at: new Date().toISOString()
+                })
+              }
+            >
+              เช็กอิน
+            </button>
+          ) : null}
           <button
             className="ghost-button"
             type="button"

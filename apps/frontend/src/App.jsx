@@ -635,19 +635,6 @@ function App() {
     return result;
   };
 
-  const handleCreateAdminSubmission = async (formId, payload) => {
-    const result = await adminDataAdapter.createAdminSubmission(formId, payload);
-    const [nextSubmissions, nextClaims, nextEmailLogs] = await Promise.all([
-      adminDataAdapter.listSubmissions(),
-      adminDataAdapter.listClaims(),
-      adminDataAdapter.listEmailLogs()
-    ]);
-    setSubmissions(nextSubmissions);
-    setClaims(nextClaims);
-    setEmailLogs(nextEmailLogs);
-    return result;
-  };
-
   useEffect(() => {
     if (route.id !== ROUTE_ID_SUBMISSION_DETAIL) {
       setSubmissionDetail(null);
@@ -954,8 +941,6 @@ function App() {
         }}
         onOpenSubmission={(submissionId) => navigate(`/admin/submissions/${submissionId}`)}
         onUpdateSubmission={handleUpdateSubmission}
-        onCreateAdminSubmission={handleCreateAdminSubmission}
-        onLoadFormDraft={handleLoadFormDraft}
         onLogout={() => navigate(PATH_LOGIN, { replace: true })}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -1101,7 +1086,7 @@ function App() {
       <ModulePlaceholderPage
         title="โหลดข้อมูลไม่สำเร็จ"
         description={`เกิดข้อผิดพลาด: ${bootstrapError}`}
-        bullets={["ลองรีเฟรชหน้าอีกครั้ง", "ตรวจสอบ mock adapter/service"]}
+        bullets={["ลองรีเฟรชหน้าอีกครั้ง", "ตรวจสอบ backend service และฐานข้อมูล"]}
         breadcrumbs={["แอดมิน", "Error"]}
         onLogout={() => navigate(PATH_LOGIN, { replace: true })}
         theme={theme}
