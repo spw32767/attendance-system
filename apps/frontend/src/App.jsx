@@ -681,6 +681,7 @@ function App() {
         forms={formsWithProjectName}
         onToggleProjectUsage={handleToggleProjectUsage}
         onToggleFormUsage={handleToggleFormUsage}
+        onLoadFormDraft={handleLoadFormDraft}
         onOpenProjectForms={(projectId) => navigate(toProjectFormsPath(projectId))}
         onOpenFormEditor={(projectId, formId) =>
           navigate(`${PATH_FORM_EDITOR}?project=${projectId}&template=${formId}`)

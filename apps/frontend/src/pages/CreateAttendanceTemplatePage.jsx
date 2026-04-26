@@ -721,24 +721,26 @@ function CreateAttendanceTemplatePage({
 
       {bannerText ? <p className="notice-banner builder-page-width">{bannerText}</p> : null}
 
-      <nav className="builder-tabs builder-page-width" aria-label="แท็บจัดการแบบฟอร์ม">
-        <button
-          className={`builder-tab-button${activeTab === "details" ? " builder-tab-button-active" : ""
-            }`}
-          type="button"
-          onClick={() => setActiveTab("details")}
-        >
-          รายละเอียดแบบฟอร์ม
-        </button>
-        <button
-          className={`builder-tab-button${activeTab === "questions" ? " builder-tab-button-active" : ""
-            }`}
-          type="button"
-          onClick={() => setActiveTab("questions")}
-        >
-          คำถาม
-        </button>
-      </nav>
+      <div className="builder-page-width">
+        <nav className="builder-tabs" aria-label="แท็บจัดการแบบฟอร์ม">
+          <button
+            className={`builder-tab-button${activeTab === "details" ? " builder-tab-button-active" : ""
+              }`}
+            type="button"
+            onClick={() => setActiveTab("details")}
+          >
+            รายละเอียดแบบฟอร์ม
+          </button>
+          <button
+            className={`builder-tab-button${activeTab === "questions" ? " builder-tab-button-active" : ""
+              }`}
+            type="button"
+            onClick={() => setActiveTab("questions")}
+          >
+            คำถาม
+          </button>
+        </nav>
+      </div>
 
       {activeTab === "details" ? <section className="builder-meta-card builder-page-width page-enter">
         <h2>รายละเอียดแบบฟอร์ม</h2>

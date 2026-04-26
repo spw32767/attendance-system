@@ -3,7 +3,9 @@ import {
   ChevronRight,
   Folder,
   ExternalLink,
-  Pencil
+  Pencil,
+  Eye,
+  X
 } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 
@@ -20,11 +22,16 @@ function AdminDashboardPage({
   forms,
   onToggleProjectUsage,
   onToggleFormUsage,
+  onLoadFormDraft,
   onOpenProjectForms,
   onOpenFormEditor
 }) {
   const [collapsedProjects, setCollapsedProjects] = useState({});
   const [closingProjects, setClosingProjects] = useState({});
+  const [previewForm, setPreviewForm] = useState(null);
+  const [previewDraft, setPreviewDraft] = useState(null);
+  const [previewError, setPreviewError] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
   const collapseTimersRef = useRef({});
 
   useEffect(() => {
@@ -34,6 +41,27 @@ function AdminDashboardPage({
       });
     };
   }, []);
+
+  useEffect(() => {
+    if (!previewForm) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setPreviewForm(null);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [previewForm]);
 
   const toggleProjectCollapse = (projectId) => {
     const projectKey = Number(projectId);
@@ -99,6 +127,143 @@ function AdminDashboardPage({
     () => forms.filter((form) => form.status === "published").length,
     [forms]
   );
+
+  const closePreviewModal = () => {
+    setPreviewForm(null);
+    setPreviewDraft(null);
+    setPreviewError("");
+    setPreviewLoading(false);
+  };
+
+  const openPreviewModal = async (form) => {
+    setPreviewForm(form);
+    setPreviewDraft(null);
+    setPreviewError("");
+    setPreviewLoading(true);
+
+    try {
+      const draft = await onLoadFormDraft(form.form_id, form.project_id);
+      setPreviewDraft(draft);
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : "โหลดตัวอย่างฟอร์มไม่สำเร็จ");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const renderFieldPreviewInput = (field) => {
+    const options = Array.isArray(field.options) ? field.options : [];
+
+    if (field.field_type === "short_text") {
+      return (
+        <input
+          className="input-control"
+          placeholder={field.placeholder || "คำตอบสั้น"}
+          disabled
+        />
+      );
+    }
+
+    if (field.field_type === "long_text") {
+      return (
+        <textarea
+          className="textarea-control"
+          rows={3}
+          placeholder={field.placeholder || "คำตอบยาว"}
+          disabled
+        />
+      );
+    }
+
+    if (field.field_type === "multiple_choice") {
+      return (
+        <div className="preview-options">
+          {options.map((option) => (
+            <label key={option.id}>
+              <input type="radio" disabled />
+              <span>{option.option_label || "ตัวเลือก"}</span>
+            </label>
+          ))}
+          {field.allow_other_option ? (
+            <label>
+              <input type="radio" disabled />
+              <span>อื่นๆ</span>
+            </label>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (field.field_type === "checkboxes") {
+      return (
+        <div className="preview-options">
+          {options.map((option) => (
+            <label key={option.id}>
+              <input type="checkbox" disabled />
+              <span>{option.option_label || "ตัวเลือก"}</span>
+            </label>
+          ))}
+          {field.allow_other_option ? (
+            <label>
+              <input type="checkbox" disabled />
+              <span>อื่นๆ</span>
+            </label>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (field.field_type === "dropdown") {
+      return (
+        <select className="select-control" disabled>
+          <option>เลือกคำตอบ</option>
+          {options.map((option) => (
+            <option key={option.id}>{option.option_label || "ตัวเลือก"}</option>
+          ))}
+        </select>
+      );
+    }
+
+    if (field.field_type === "rating") {
+      const min = Number(field.settings_json?.rating_min || 1);
+      const max = Number(field.settings_json?.rating_max || 5);
+      const ratingNumbers = [];
+
+      for (let value = min; value <= max; value += 1) {
+        ratingNumbers.push(value);
+      }
+
+      return (
+        <div className="preview-rating">
+          {ratingNumbers.map((value) => (
+            <span key={value}>{value}</span>
+          ))}
+        </div>
+      );
+    }
+
+    if (field.field_type === "date") {
+      return <input className="input-control" type="date" disabled />;
+    }
+
+    if (field.field_type === "time") {
+      return <input className="input-control" type="time" disabled />;
+    }
+
+    if (field.field_type === "file_upload") {
+      const maxFileCount = Number(field.settings_json?.max_file_count || 1);
+      return (
+        <div className="file-upload-preview">
+          <button className="ghost-button" type="button" disabled>
+            เลือกไฟล์
+          </button>
+          <small>อัปโหลดได้สูงสุด {maxFileCount} ไฟล์</small>
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <AdminLayout
@@ -286,16 +451,26 @@ function AdminDashboardPage({
                                 </div>
                               </td>
                               <td className="table-col-actions">
-                                <button
-                                  className="table-action-button table-action-button-primary"
-                                  type="button"
-                                  onClick={() =>
-                                    onOpenFormEditor(form.project_id, form.form_id)
-                                  }
-                                >
-                                  <Pencil size={13} strokeWidth={2} />
-                                  <span>แก้ไขฟอร์ม</span>
-                                </button>
+                                <div className="table-actions">
+                                  <button
+                                    className="table-action-button table-action-button-secondary"
+                                    type="button"
+                                    onClick={() => openPreviewModal(form)}
+                                  >
+                                    <Eye size={13} strokeWidth={2} />
+                                    <span>ดูตัวอย่าง</span>
+                                  </button>
+                                  <button
+                                    className="table-action-button table-action-button-primary"
+                                    type="button"
+                                    onClick={() =>
+                                      onOpenFormEditor(form.project_id, form.form_id)
+                                    }
+                                  >
+                                    <Pencil size={13} strokeWidth={2} />
+                                    <span>แก้ไขฟอร์ม</span>
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -308,6 +483,72 @@ function AdminDashboardPage({
           </table>
         </div>
       </section>
+
+      {previewForm ? (
+        <div
+          className="dashboard-preview-overlay"
+          role="presentation"
+          onClick={closePreviewModal}
+        >
+          <section
+            className="dashboard-preview-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`ตัวอย่างแบบฟอร์ม ${previewForm.form_name}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="dashboard-preview-header">
+              <div>
+                <p className="dashboard-preview-kicker">Form Preview</p>
+                <h2>{previewForm.form_name}</h2>
+              </div>
+              <button
+                className="icon-only-button icon-neutral-button"
+                type="button"
+                onClick={closePreviewModal}
+                aria-label="ปิดตัวอย่างฟอร์ม"
+                title="ปิดตัวอย่างฟอร์ม"
+              >
+                <X size={17} strokeWidth={2.2} />
+              </button>
+            </header>
+
+            <div className="dashboard-preview-body">
+              {previewLoading ? <p className="dashboard-preview-note">กำลังโหลดตัวอย่างฟอร์ม...</p> : null}
+              {previewError ? <p className="dashboard-preview-note dashboard-preview-note-error">{previewError}</p> : null}
+
+              {!previewLoading && !previewError && previewDraft ? (
+                <div className="google-preview-surface dashboard-preview-surface">
+                  <article className="google-preview-form-card">
+                    <div className="google-preview-form-accent" />
+                    <div className="google-preview-form-body">
+                      <h3>{previewDraft.form_name || "แบบฟอร์มใหม่"}</h3>
+                      <p>{previewDraft.form_description || "คำอธิบายแบบฟอร์ม"}</p>
+                    </div>
+                  </article>
+
+                  {(previewDraft.fields || []).length ? (
+                    previewDraft.fields.map((field, fieldIndex) => (
+                      <article key={field.id || `${field.field_code || "field"}_${fieldIndex}`} className="google-preview-question-card">
+                        <p className="google-preview-question-title">
+                          {field.field_label || `คำถาม ${fieldIndex + 1}`}
+                          {field.is_required ? <span className="required-mark">*</span> : null}
+                        </p>
+                        {field.field_description ? <small>{field.field_description}</small> : null}
+                        {renderFieldPreviewInput(field)}
+                      </article>
+                    ))
+                  ) : (
+                    <article className="google-preview-question-card">
+                      <p className="google-preview-question-title">ยังไม่มีคำถามในฟอร์มนี้</p>
+                    </article>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </AdminLayout>
   );
 }
