@@ -16,5 +16,12 @@ export const env = {
   dbUser: process.env.DB_USER ?? "root",
   dbPassword: process.env.DB_PASSWORD ?? "",
   dbName: process.env.DB_NAME ?? "drnadech_attendance_system",
-  dbConnectionLimit: toNumber(process.env.DB_CONNECTION_LIMIT, 10)
+  dbConnectionLimit: toNumber(process.env.DB_CONNECTION_LIMIT, 10),
+  smtpHost: process.env.SMTP_HOST ?? "",
+  smtpPort: toNumber(process.env.SMTP_PORT, 587),
+  smtpSecure: (process.env.SMTP_SECURE ?? "false") === "true",
+  smtpUser: process.env.SMTP_USER ?? "",
+  smtpPassword: process.env.SMTP_PASSWORD ?? "",
+  smtpFromEmail: process.env.SMTP_FROM_EMAIL ?? "",
+  smtpFromName: process.env.SMTP_FROM_NAME ?? "Attendance System"
 };

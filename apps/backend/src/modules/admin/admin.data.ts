@@ -1,8 +1,22 @@
 import { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { pool } from "../../db/mysql";
+import { sendEmailWithQr } from "./email.service";
 
 type AnyRow = RowDataPacket & { [key: string]: any };
 type AnyPayload = Record<string, any>;
+
+type ClaimQrToken = {
+  label: string;
+  token: string;
+};
+
+type PendingEmailDispatch = {
+  emailLogId: number;
+  recipientEmail: string;
+  subject: string;
+  html: string;
+  qrTokens: ClaimQrToken[];
+};
 
 const PROJECT_TYPE_LABELS: Record<string, string> = {
   event: "กิจกรรม / อีเวนต์",
@@ -108,7 +122,9 @@ const listProjectsQuery = `
     project_type,
     source_url,
     description,
-    is_active
+    is_active,
+    created_at,
+    updated_at
   FROM proj_projects
   WHERE deleted_at IS NULL
   ORDER BY project_id ASC
@@ -137,7 +153,9 @@ const getFormRows = async (projectId?: number | null, connection?: PoolConnectio
         f.end_at,
         f.success_title,
         f.success_message,
-        f.settings_json
+        f.settings_json,
+        f.created_at,
+        f.updated_at
       FROM form_forms f
       INNER JOIN proj_projects p ON p.project_id = f.project_id
       WHERE f.deleted_at IS NULL
@@ -167,7 +185,9 @@ const mapFormSummary = (row: AnyRow) => {
     end_at: toDateTime(row.end_at),
     share_key: settings.share_key || toShareKey(),
     success_title: row.success_title || "",
-    success_message: row.success_message || ""
+    success_message: row.success_message || "",
+    created_at: toDateTime(row.created_at),
+    updated_at: toDateTime(row.updated_at)
   };
 };
 
@@ -414,6 +434,70 @@ const toRespondentIdentity = (answerRows: AnyRow[]) => {
   };
 };
 
+const renderTemplate = (template: string, replacements: Record<string, string>) => {
+  let output = String(template || "");
+  Object.entries(replacements).forEach(([key, value]) => {
+    output = output.replace(new RegExp(`{{${key}}}`, "g"), value);
+  });
+  return output;
+};
+
+const buildClaimLinesHtml = (qrTokens: ClaimQrToken[]) => {
+  if (!qrTokens.length) {
+    return "<p>ไม่มีรายการของรางวัลสำหรับการสแกนในครั้งนี้</p>";
+  }
+
+  const itemsHtml = qrTokens
+    .map(
+      (row) =>
+        `<li><strong>${row.label}</strong><br/><small>Token: <code>${row.token}</code></small></li>`
+    )
+    .join("");
+
+  return `<p>รายการของรางวัลที่สามารถสแกนรับของได้:</p><ul>${itemsHtml}</ul>`;
+};
+
+const dispatchPendingEmail = async (pendingEmail: PendingEmailDispatch | null) => {
+  if (!pendingEmail) {
+    return;
+  }
+
+  try {
+    if (!pendingEmail.recipientEmail || pendingEmail.recipientEmail === "-") {
+      throw new Error("Recipient email is missing");
+    }
+
+    const result = await sendEmailWithQr({
+      to: pendingEmail.recipientEmail,
+      subject: pendingEmail.subject,
+      html: pendingEmail.html,
+      qrTokens: pendingEmail.qrTokens
+    });
+
+    await execute(
+      `
+        UPDATE email_send_logs
+        SET send_status = 'sent',
+            provider_message_id = ?,
+            error_message = NULL,
+            sent_at = CURRENT_TIMESTAMP
+        WHERE email_log_id = ?
+      `,
+      [result.messageId, pendingEmail.emailLogId]
+    );
+  } catch (error) {
+    await execute(
+      `
+        UPDATE email_send_logs
+        SET send_status = 'failed',
+            error_message = ?
+        WHERE email_log_id = ?
+      `,
+      [error instanceof Error ? error.message : "Unknown email error", pendingEmail.emailLogId]
+    );
+  }
+};
+
 export const listProjects = async () => {
   const rows = await queryRows<AnyRow>(listProjectsQuery);
   return rows.map((row) => ({
@@ -424,7 +508,9 @@ export const listProjects = async () => {
     project_type_label: PROJECT_TYPE_LABELS[row.project_type] || row.project_type,
     source_url: row.source_url || "",
     description: row.description || "",
-    is_active: toBoolean(row.is_active)
+    is_active: toBoolean(row.is_active),
+    created_at: toDateTime(row.created_at),
+    updated_at: toDateTime(row.updated_at)
   }));
 };
 
@@ -1004,24 +1090,156 @@ export const getSubmissionDetail = async (submissionId: number) => {
 };
 
 export const updateSubmission = async (submissionId: number, payload: AnyPayload) => {
-  await execute(
-    `
-      UPDATE entry_submissions
-      SET attendance_status = ?,
-          check_in_at = ?,
-          check_out_at = ?,
-          notes = ?
-      WHERE submission_id = ?
-        AND deleted_at IS NULL
-    `,
-    [
-      payload.attendance_status || "submitted",
-      toNullableDateTime(payload.check_in_at),
-      toNullableDateTime(payload.check_out_at),
-      payload.note || payload.notes || null,
-      submissionId
-    ]
-  );
+  let pendingEmail: PendingEmailDispatch | null = null;
+
+  await withTransaction(async (connection) => {
+    const rows = await queryRows<AnyRow>(
+      `
+        SELECT
+          s.submission_id,
+          s.form_id,
+          s.submission_code,
+          s.attendance_status,
+          s.check_in_at,
+          s.check_out_at,
+          s.notes,
+          f.form_name
+        FROM entry_submissions s
+        INNER JOIN form_forms f ON f.form_id = s.form_id
+        WHERE s.submission_id = ?
+          AND s.deleted_at IS NULL
+          AND f.deleted_at IS NULL
+        LIMIT 1
+      `,
+      [submissionId],
+      connection
+    );
+
+    const current = rows[0];
+    if (!current) {
+      return;
+    }
+
+    const hasCheckIn = Object.prototype.hasOwnProperty.call(payload, "check_in_at");
+    const hasCheckOut = Object.prototype.hasOwnProperty.call(payload, "check_out_at");
+    const hasNote =
+      Object.prototype.hasOwnProperty.call(payload, "note") ||
+      Object.prototype.hasOwnProperty.call(payload, "notes");
+
+    const nextAttendanceStatus = payload.attendance_status || current.attendance_status || "submitted";
+    const nextCheckInAt = hasCheckIn
+      ? toNullableDateTime(payload.check_in_at)
+      : toNullableDateTime(current.check_in_at);
+    const nextCheckOutAt = hasCheckOut
+      ? toNullableDateTime(payload.check_out_at)
+      : toNullableDateTime(current.check_out_at);
+    const nextNote = hasNote ? payload.note || payload.notes || null : current.notes || null;
+
+    await execute(
+      `
+        UPDATE entry_submissions
+        SET attendance_status = ?,
+            check_in_at = ?,
+            check_out_at = ?,
+            notes = ?
+        WHERE c.submission_id = ?
+          AND deleted_at IS NULL
+      `,
+      [nextAttendanceStatus, nextCheckInAt, nextCheckOutAt, nextNote, submissionId],
+      connection
+    );
+
+    const transitionedToPresent =
+      String(current.attendance_status || "submitted") !== "present" &&
+      nextAttendanceStatus === "present";
+
+    if (!transitionedToPresent) {
+      return;
+    }
+
+    const existingCheckInEmails = await queryRows<AnyRow>(
+      `
+        SELECT email_log_id
+        FROM email_send_logs
+        WHERE submission_id = ?
+          AND notification_code = 'checkin_confirmation'
+          AND deleted_at IS NULL
+        LIMIT 1
+      `,
+      [submissionId],
+      connection
+    );
+
+    if (existingCheckInEmails.length > 0) {
+      return;
+    }
+
+    const answerRows = await getSubmissionAnswerRows([submissionId], connection);
+    const identity = toRespondentIdentity(answerRows);
+
+    const claimRows = await queryRows<AnyRow>(
+      `
+        SELECT c.claim_token, i.item_name
+        FROM item_claims c
+        INNER JOIN item_catalogs i ON i.item_id = c.item_id
+        WHERE submission_id = ?
+          AND c.deleted_at IS NULL
+          AND i.deleted_at IS NULL
+        ORDER BY c.claim_id ASC
+      `,
+      [submissionId],
+      connection
+    );
+
+    const claimQrTokens = claimRows
+      .map((row, index) => ({
+        label: String(row.item_name || `รายการที่ ${index + 1}`),
+        token: String(row.claim_token || "").trim()
+      }))
+      .filter((row) => row.token);
+
+    const emailSubject = `ยืนยันเช็กอิน ${current.form_name || "-"} - ${current.submission_code || ""}`.slice(0, 255);
+    const emailBody = `<p>สวัสดี ${identity.respondentName || "ผู้เข้าร่วม"}</p><p>ระบบได้ยืนยันการเช็กอินของคุณสำหรับฟอร์ม <strong>${current.form_name || "-"}</strong> แล้ว</p><p>รหัสการลงทะเบียน: <strong>${current.submission_code || "-"}</strong></p>${buildClaimLinesHtml(claimQrTokens)}`;
+
+    const insertResult = await execute(
+      `
+        INSERT INTO email_send_logs (
+          email_template_id,
+          form_id,
+          submission_id,
+          recipient_email,
+          notification_code,
+          email_subject,
+          send_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        null,
+        current.form_id,
+        submissionId,
+        identity.respondentEmail && identity.respondentEmail !== "-"
+          ? identity.respondentEmail
+          : "unknown@example.com",
+        "checkin_confirmation",
+        emailSubject,
+        "queued"
+      ],
+      connection
+    );
+
+    pendingEmail = {
+      emailLogId: Number(insertResult.insertId),
+      recipientEmail:
+        identity.respondentEmail && identity.respondentEmail !== "-"
+          ? identity.respondentEmail
+          : "unknown@example.com",
+      subject: emailSubject,
+      html: emailBody,
+      qrTokens: claimQrTokens
+    };
+  });
+
+  await dispatchPendingEmail(pendingEmail);
 };
 
 export const getPublicForm = async (publicPath: string) => {
@@ -1087,7 +1305,7 @@ const buildSubmissionCode = async (formId: number, connection: PoolConnection) =
 };
 
 type SubmitFormOptions = {
-  sourceType: "public_form" | "admin_created";
+  sourceType: "public_form";
   note?: string | null;
   markPresent?: boolean;
 };
@@ -1295,10 +1513,11 @@ const submitFormForRow = async (
     }
 
     const formSettings = parseJson<Record<string, any>>(formRow.settings_json, {});
+    const claimQrTokens: ClaimQrToken[] = [];
     if (formSettings.auto_create_item_claims !== false) {
       const itemRows = await queryRows<AnyRow>(
         `
-          SELECT item_id, default_qty
+          SELECT item_id, item_name, default_qty
           FROM item_catalogs
           WHERE form_id = ?
             AND is_active = 1
@@ -1311,6 +1530,11 @@ const submitFormForRow = async (
 
       for (let index = 0; index < itemRows.length; index += 1) {
         const itemRow = itemRows[index];
+        const claimToken = `CLAIM-${String(formRow.form_id).padStart(3, "0")}-${String(nextSubmissionId).padStart(4, "0")}-${index + 1}`;
+        claimQrTokens.push({
+          label: String(itemRow.item_name || `รายการที่ ${index + 1}`),
+          token: claimToken
+        });
         await execute(
           `
             INSERT INTO item_claims (
@@ -1326,7 +1550,7 @@ const submitFormForRow = async (
           [
             nextSubmissionId,
             itemRow.item_id,
-            `CLAIM-${String(formRow.form_id).padStart(3, "0")}-${String(nextSubmissionId).padStart(4, "0")}-${index + 1}`,
+            claimToken,
             "pending",
             Number(itemRow.default_qty || 1),
             null
@@ -1338,7 +1562,7 @@ const submitFormForRow = async (
 
     const emailTemplateRows = await queryRows<AnyRow>(
       `
-        SELECT email_template_id, notification_code, email_subject_template
+        SELECT email_template_id, notification_code, email_subject_template, email_body_template
         FROM email_notification_templates
         WHERE form_id = ?
           AND is_active = 1
@@ -1350,9 +1574,22 @@ const submitFormForRow = async (
       connection
     );
 
+    let pendingEmail: PendingEmailDispatch | null = null;
+
     const activeTemplate = emailTemplateRows[0];
     if (activeTemplate) {
-      await execute(
+      const renderedSubject = renderTemplate(String(activeTemplate.email_subject_template || ""), {
+        form_name: formSummary.form_name,
+        submission_code: submissionCode,
+        full_name: respondentName
+      });
+      const renderedBody = renderTemplate(String(activeTemplate.email_body_template || ""), {
+        form_name: formSummary.form_name,
+        submission_code: submissionCode,
+        full_name: respondentName
+      });
+
+      const insertResult = await execute(
         `
           INSERT INTO email_send_logs (
             email_template_id,
@@ -1361,9 +1598,8 @@ const submitFormForRow = async (
             recipient_email,
             notification_code,
             email_subject,
-            send_status,
-            sent_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            send_status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
         [
           activeTemplate.email_template_id,
@@ -1371,14 +1607,19 @@ const submitFormForRow = async (
           nextSubmissionId,
           respondentEmail,
           activeTemplate.notification_code,
-          String(activeTemplate.email_subject_template || "")
-            .replace("{{form_name}}", formSummary.form_name)
-            .replace("{{submission_code}}", submissionCode)
-            .replace("{{full_name}}", respondentName),
-          "sent"
+          renderedSubject,
+          "queued"
         ],
         connection
       );
+
+      pendingEmail = {
+        emailLogId: Number(insertResult.insertId),
+        recipientEmail: respondentEmail,
+        subject: renderedSubject,
+        html: `${renderedBody}${buildClaimLinesHtml(claimQrTokens)}`,
+        qrTokens: claimQrTokens
+      };
     }
 
     return {
@@ -1387,12 +1628,13 @@ const submitFormForRow = async (
       submissionId: nextSubmissionId,
       submissionCode,
       successTitle: formSummary.success_title,
-      successMessage: formSummary.success_message
+      successMessage: formSummary.success_message,
+      pendingEmail
     };
 };
 
-export const submitPublicForm = async (publicPath: string, payload: AnyPayload) =>
-  withTransaction(async (connection) => {
+export const submitPublicForm = async (publicPath: string, payload: AnyPayload) => {
+  const result = await withTransaction(async (connection) => {
     const formRows = await queryRows<AnyRow>(
       `
         SELECT
@@ -1433,47 +1675,10 @@ export const submitPublicForm = async (publicPath: string, payload: AnyPayload) 
     );
   });
 
-export const createAdminSubmission = async (formId: number, payload: AnyPayload) =>
-  withTransaction(async (connection) => {
-    const formRows = await queryRows<AnyRow>(
-      `
-        SELECT
-          form_id,
-          project_id,
-          form_name,
-          public_path,
-          form_type,
-          status,
-          start_at,
-          end_at,
-          success_title,
-          success_message,
-          settings_json
-        FROM form_forms
-        WHERE form_id = ?
-          AND deleted_at IS NULL
-        LIMIT 1
-      `,
-      [formId],
-      connection
-    );
-
-    const formRow = formRows[0];
-    if (!formRow) {
-      return { ok: false, status: "not_found" };
-    }
-
-    return submitFormForRow(
-      formRow,
-      payload,
-      {
-        sourceType: "admin_created",
-        note: typeof payload.note === "string" ? payload.note : null,
-        markPresent: payload.mark_present === undefined ? true : Boolean(payload.mark_present)
-      },
-      connection
-    );
-  });
+  await dispatchPendingEmail((result as AnyPayload).pendingEmail || null);
+  const { pendingEmail, ...publicResult } = result as AnyPayload;
+  return publicResult;
+};
 
 export const listItems = async () => {
   const rows = await queryRows<AnyRow>(
