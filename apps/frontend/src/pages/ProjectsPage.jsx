@@ -11,6 +11,19 @@ import AdminLayout from "../components/AdminLayout";
 
 const PAGE_SIZE = 10;
 
+const formatDateTime = (value) => {
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "-";
+  }
+
+  return parsed.toLocaleString("th-TH");
+};
+
 function ProjectsPage({
   projects,
   onCreateProject,
@@ -39,7 +52,8 @@ function ProjectsPage({
         project.project_code,
         project.project_name,
         project.project_type,
-        project.source_url
+        project.source_url,
+        project.updated_at
       ]
         .join(" ")
         .toLowerCase();
@@ -131,6 +145,8 @@ function ProjectsPage({
                 <th className="table-col-index">#</th>
                 <th className="table-col-primary table-col-left">โครงการ</th>
                 <th className="table-col-secondary">ประเภท</th>
+                <th className="table-col-meta">เว็บไซต์</th>
+                <th className="table-col-date">อัปเดตล่าสุด</th>
                 <th className="table-col-status">สถานะ</th>
                 <th className="table-col-actions">การจัดการ</th>
               </tr>
@@ -138,7 +154,7 @@ function ProjectsPage({
             <tbody>
               {pagedProjects.length === 0 ? (
                 <tr>
-                  <td className="empty-row" colSpan={5}>
+                  <td className="empty-row" colSpan={7}>
                     ไม่พบโครงการ
                   </td>
                 </tr>
@@ -153,6 +169,16 @@ function ProjectsPage({
                       </div>
                     </td>
                     <td className="table-col-secondary">{project.project_type_label || project.project_type}</td>
+                    <td className="table-col-meta">
+                      {project.source_url ? (
+                        <a href={project.source_url} target="_blank" rel="noreferrer">
+                          {project.source_url}
+                        </a>
+                      ) : (
+                        <span>-</span>
+                      )}
+                    </td>
+                    <td className="table-col-date">{formatDateTime(project.updated_at)}</td>
                     <td className="table-col-status">
                       <div className="table-status-readout">
                         <span

@@ -15,6 +15,31 @@ import TableActionMenu from "../components/TableActionMenu";
 
 const PAGE_SIZE = 10;
 
+const formatDateTime = (value) => {
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "-";
+  }
+
+  return parsed.toLocaleString("th-TH");
+};
+
+const buildPublicFormUrl = (publicPath) => {
+  if (!publicPath) {
+    return "";
+  }
+
+  if (typeof window === "undefined") {
+    return `/forms/${publicPath}`;
+  }
+
+  return `${window.location.origin}/forms/${publicPath}`;
+};
+
 const STATUS_META = {
   published: {
     label: "เปิดใช้งาน",
@@ -63,7 +88,10 @@ function AttendanceTemplatesPage({
         template.form_name,
         template.public_path,
         template.status,
-        template.share_key
+        template.share_key,
+        template.start_at,
+        template.end_at,
+        template.updated_at
       ]
         .join(" ")
         .toLowerCase();
@@ -161,6 +189,8 @@ function AttendanceTemplatesPage({
                 <th className="table-col-index">#</th>
                 <th className="table-col-primary table-col-left">ชื่อฟอร์ม</th>
                 <th className="table-col-meta">ลิงก์แบบฟอร์ม</th>
+                <th className="table-col-date">ช่วงเวลาเปิด-ปิด</th>
+                <th className="table-col-date">อัปเดตล่าสุด</th>
                 <th className="table-col-status">สถานะ</th>
                 <th className="table-col-actions-wide">การจัดการ</th>
               </tr>
@@ -168,7 +198,7 @@ function AttendanceTemplatesPage({
             <tbody>
               {pagedTemplates.length === 0 ? (
                 <tr>
-                  <td className="empty-row" colSpan={5}>
+                  <td className="empty-row" colSpan={7}>
                     ไม่พบเทมเพลต
                   </td>
                 </tr>
@@ -188,9 +218,26 @@ function AttendanceTemplatesPage({
                       </td>
                       <td className="table-col-meta">
                         <div className="template-url">
-                          attendance.com/{template.public_path}?={template.share_key}
+                          {template.public_path ? (
+                            <a
+                              href={buildPublicFormUrl(template.public_path)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {buildPublicFormUrl(template.public_path)}
+                            </a>
+                          ) : (
+                            <span>-</span>
+                          )}
                         </div>
                       </td>
+                      <td className="table-col-date">
+                        <div className="table-primary-cell">
+                          <p>เริ่ม: {formatDateTime(template.start_at)}</p>
+                          <small>สิ้นสุด: {formatDateTime(template.end_at)}</small>
+                        </div>
+                      </td>
+                      <td className="table-col-date">{formatDateTime(template.updated_at)}</td>
                       <td className="table-col-status">
                         <div className="table-status-readout">
                           <span className={statusMeta.className}>{statusMeta.label}</span>

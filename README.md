@@ -52,4 +52,8 @@ Backend build entry is generated at `apps/backend/dist/server.js`.
 
 ## Environment
 
-Copy `apps/backend/.env.example` to `apps/backend/.env` and update values for your local MySQL setup.
+Copy `apps/backend/.env.example` to `apps/backend/.env` and update values for your local MySQL setup and SMTP provider.
+
+Copy `apps/frontend/.env.example` to `apps/frontend/.env.local` and set API endpoint values.
+
+Frontend data source is API-only (`/api`) and no longer supports mock provider switching.

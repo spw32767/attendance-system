@@ -2604,6 +2604,12 @@ button:disabled {
   gap: 12px;
 }
 
+.public-live-google-form {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
 .google-preview-form-card,
 .google-preview-question-card {
   border: 1px solid var(--line-soft);

@@ -149,18 +149,24 @@ function PublicFormPage({
 
   return (
     <div className="public-form-shell page-enter">
-      <section className="public-form-card">
-        <p className="public-form-chip">Public Form</p>
-        <h1>{formData.form_name || "แบบฟอร์ม"}</h1>
-        <p>{formData.form_description || "กรุณากรอกข้อมูลให้ครบถ้วน"}</p>
+      <section className="google-preview-surface">
+        <article className="google-preview-form-card">
+          <div className="google-preview-form-accent" />
+          <div className="google-preview-form-body">
+            <h3>{formData.form_name || "แบบฟอร์ม"}</h3>
+            <p>{formData.form_description || "กรุณากรอกข้อมูลให้ครบถ้วน"}</p>
+          </div>
+        </article>
 
-        <form className="public-form-grid" onSubmit={handleSubmit}>
+        <form className="public-live-google-form" onSubmit={handleSubmit}>
           {orderedFields.map((field) => (
-            <label key={field.id} className="public-form-field">
-              <span>
+            <article key={field.id} className="google-preview-question-card">
+              <p className="google-preview-question-title">
                 {field.field_label || "คำถาม"}
                 {field.is_required ? <strong className="required-mark">*</strong> : null}
-              </span>
+              </p>
+
+              {field.field_description ? <small>{field.field_description}</small> : null}
 
               {field.field_type === "short_text" ? (
                 <input
@@ -181,20 +187,24 @@ function PublicFormPage({
                 />
               ) : null}
 
-              {(field.field_type === "multiple_choice" || field.field_type === "dropdown") && (
-                <select
-                  className="select-control"
-                  value={answers[field.id] || ""}
-                  onChange={(event) => setAnswer(field.id, event.target.value)}
-                >
-                  <option value="">เลือกคำตอบ</option>
-                  {(field.options || []).map((option) => (
-                    <option key={option.id} value={option.option_value || option.option_label}>
-                      {option.option_label}
-                    </option>
-                  ))}
-                </select>
-              )}
+              {field.field_type === "multiple_choice" ? (
+                <div className="preview-options">
+                  {(field.options || []).map((option) => {
+                    const optionValue = option.option_value || option.option_label;
+                    return (
+                      <label key={option.id}>
+                        <input
+                          type="radio"
+                          name={`field_${field.id}`}
+                          checked={(answers[field.id] || "") === optionValue}
+                          onChange={() => setAnswer(field.id, optionValue)}
+                        />
+                        <span>{option.option_label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : null}
 
               {field.field_type === "checkboxes" ? (
                 <div className="preview-options">
@@ -225,6 +235,21 @@ function PublicFormPage({
                     );
                   })}
                 </div>
+              ) : null}
+
+              {field.field_type === "dropdown" ? (
+                <select
+                  className="select-control"
+                  value={answers[field.id] || ""}
+                  onChange={(event) => setAnswer(field.id, event.target.value)}
+                >
+                  <option value="">เลือกคำตอบ</option>
+                  {(field.options || []).map((option) => (
+                    <option key={option.id} value={option.option_value || option.option_label}>
+                      {option.option_label}
+                    </option>
+                  ))}
+                </select>
               ) : null}
 
               {field.field_type === "rating" ? (
@@ -269,21 +294,25 @@ function PublicFormPage({
               ) : null}
 
               {field.field_type === "file_upload" ? (
-                <input
-                  className="input-control"
-                  type="file"
-                  multiple={(field.settings_json?.max_file_count || 1) > 1}
-                  onChange={(event) => setAnswer(field.id, event.target.files)}
-                />
+                <div className="file-upload-preview">
+                  <input
+                    className="input-control"
+                    type="file"
+                    multiple={(field.settings_json?.max_file_count || 1) > 1}
+                    onChange={(event) => setAnswer(field.id, event.target.files)}
+                  />
+                </div>
               ) : null}
 
               {errors[field.id] ? <small className="public-form-error">{errors[field.id]}</small> : null}
-            </label>
+            </article>
           ))}
 
-          <button className="primary-button" type="submit">
-            ส่งข้อมูล
-          </button>
+          <article className="google-preview-question-card">
+            <button className="primary-button" type="submit">
+              ส่งข้อมูล
+            </button>
+          </article>
         </form>
       </section>
     </div>
