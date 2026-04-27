@@ -1,4 +1,5 @@
 import { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import * as XLSX from "xlsx";
 import { pool } from "../../db/mysql";
 import { sendEmailWithQr } from "./email.service";
 
@@ -17,6 +18,89 @@ type PendingEmailDispatch = {
   html: string;
   qrTokens: ClaimQrToken[];
 };
+
+type ImportSubmissionRowError = {
+  row: number;
+  email: string;
+  message: string;
+};
+
+type ImportSubmissionResult = {
+  ok: boolean;
+  mode: "sync";
+  duplicate_policy: "skip";
+  limits: {
+    max_file_bytes: number;
+    max_rows: number;
+  };
+  summary: {
+    total_rows: number;
+    processed_rows: number;
+    inserted: number;
+    skipped_duplicates: number;
+    cancelled_missing: number;
+    failed_rows: number;
+  };
+  errors: ImportSubmissionRowError[];
+};
+
+type ImportPreviewRow = {
+  row: number;
+  email: string;
+  status: "ready_insert" | "skip_duplicate" | "reactivate" | "error";
+  message: string;
+  values: Record<string, string>;
+};
+
+type ImportPreviewResult = {
+  ok: boolean;
+  mode: "sync";
+  duplicate_policy: "skip";
+  limits: {
+    max_file_bytes: number;
+    max_rows: number;
+  };
+  summary: {
+    total_rows: number;
+    processed_rows: number;
+    ready_to_insert: number;
+    skipped_duplicates: number;
+    reactivate_count: number;
+    cancelled_missing: number;
+    failed_rows: number;
+  };
+  preview: {
+    headers: string[];
+    rows: ImportPreviewRow[];
+  };
+};
+
+type ParsedImportRow = {
+  row: number;
+  cells: Record<string, string>;
+};
+
+type ParsedImportFile = {
+  headers: string[];
+  rows: ParsedImportRow[];
+};
+
+type ImportTemplateFile = {
+  fileName: string;
+  buffer: Buffer;
+};
+
+type SubmissionExportFilter = {
+  attendance_status?: string;
+  source_type?: string;
+  keyword?: string;
+  submitted_from?: string;
+  submitted_to?: string;
+};
+
+const IMPORT_MAX_FILE_BYTES = 5 * 1024 * 1024;
+const IMPORT_MAX_ROWS = 2000;
+const IMPORT_ERROR_LIMIT = 200;
 
 const PROJECT_TYPE_LABELS: Record<string, string> = {
   event: "กิจกรรม / อีเวนต์",
@@ -74,6 +158,116 @@ const toFormCode = (formName: unknown, fallbackId: number) => {
     .slice(0, 50);
 
   return normalized || `FORM_${fallbackId}`;
+};
+
+const normalizeKey = (value: unknown) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+const normalizeCellString = (value: unknown) => {
+  if (value == null) {
+    return "";
+  }
+
+  return String(value).trim();
+};
+
+const sanitizeEmail = (value: unknown) => normalizeCellString(value).toLowerCase();
+
+const parseExcelFile = (fileBuffer: Buffer): ParsedImportFile => {
+  if (fileBuffer.length > IMPORT_MAX_FILE_BYTES) {
+    throw new Error(`ไฟล์มีขนาดเกิน ${IMPORT_MAX_FILE_BYTES} bytes`);
+  }
+
+  const workbook = XLSX.read(fileBuffer, {
+    type: "buffer",
+    raw: false,
+    cellDates: false
+  });
+
+  const firstSheetName = workbook.SheetNames[0];
+  if (!firstSheetName) {
+    throw new Error("ไม่พบชีตในไฟล์ที่อัปโหลด");
+  }
+
+  const firstSheet = workbook.Sheets[firstSheetName];
+  const rows = XLSX.utils.sheet_to_json(firstSheet, {
+    header: 1,
+    defval: "",
+    blankrows: false,
+    raw: false
+  }) as unknown[][];
+
+  if (rows.length < 2) {
+    return {
+      headers: [],
+      rows: []
+    };
+  }
+
+  const rawHeaders = rows[0].map((headerValue, index) => {
+    const normalized = normalizeKey(headerValue);
+    return normalized || `column_${index + 1}`;
+  });
+  const normalizedHeaders = toUniqueHeaders(rawHeaders);
+
+  const parsedRows: ParsedImportRow[] = [];
+
+  for (let index = 1; index < rows.length; index += 1) {
+    const rowValues = rows[index];
+    const cells = normalizedHeaders.reduce<Record<string, string>>((lookup, header, headerIndex) => {
+      lookup[header] = normalizeCellString(rowValues?.[headerIndex]);
+      return lookup;
+    }, {});
+
+    const hasAtLeastOneValue = Object.values(cells).some((value) => value !== "");
+    if (!hasAtLeastOneValue) {
+      continue;
+    }
+
+    parsedRows.push({
+      row: index + 1,
+      cells
+    });
+  }
+
+  if (parsedRows.length > IMPORT_MAX_ROWS) {
+    throw new Error(`จำนวนแถวเกินกำหนดสูงสุด ${IMPORT_MAX_ROWS} แถว`);
+  }
+
+  return {
+    headers: normalizedHeaders,
+    rows: parsedRows
+  };
+};
+
+const parseExcelRows = (fileBuffer: Buffer): ParsedImportRow[] => parseExcelFile(fileBuffer).rows;
+
+const toUniqueHeaders = (headers: string[]) => {
+  const used = new Set<string>();
+
+  return headers.map((header, index) => {
+    const safeBase = normalizeKey(header) || `column_${index + 1}`;
+    if (!used.has(safeBase)) {
+      used.add(safeBase);
+      return safeBase;
+    }
+
+    let counter = 2;
+    let nextValue = `${safeBase}_${counter}`;
+    while (used.has(nextValue)) {
+      counter += 1;
+      nextValue = `${safeBase}_${counter}`;
+    }
+
+    used.add(nextValue);
+    return nextValue;
+  });
 };
 
 const queryRows = async <T extends AnyRow>(sql: string, params: any[] = [], connection?: PoolConnection) => {
@@ -1142,7 +1336,7 @@ export const updateSubmission = async (submissionId: number, payload: AnyPayload
             check_in_at = ?,
             check_out_at = ?,
             notes = ?
-        WHERE c.submission_id = ?
+        WHERE submission_id = ?
           AND deleted_at IS NULL
       `,
       [nextAttendanceStatus, nextCheckInAt, nextCheckOutAt, nextNote, submissionId],
@@ -1305,9 +1499,11 @@ const buildSubmissionCode = async (formId: number, connection: PoolConnection) =
 };
 
 type SubmitFormOptions = {
-  sourceType: "public_form";
+  sourceType: "public_form" | "import_excel";
   note?: string | null;
   markPresent?: boolean;
+  enforceFormOpen?: boolean;
+  queueSubmissionEmail?: boolean;
 };
 
 const resolveAnswerValue = (
@@ -1346,8 +1542,9 @@ const submitFormForRow = async (
   connection: PoolConnection
 ) => {
     const formSummary = mapFormSummary({ ...formRow, project_name: "" });
+    const shouldEnforceFormOpen = options.enforceFormOpen !== false;
     const status = getFormStatus(formSummary);
-    if (status !== "open") {
+    if (shouldEnforceFormOpen && status !== "open") {
       return { ok: false, status };
     }
 
@@ -1577,7 +1774,7 @@ const submitFormForRow = async (
     let pendingEmail: PendingEmailDispatch | null = null;
 
     const activeTemplate = emailTemplateRows[0];
-    if (activeTemplate) {
+    if (activeTemplate && options.queueSubmissionEmail !== false) {
       const renderedSubject = renderTemplate(String(activeTemplate.email_subject_template || ""), {
         form_name: formSummary.form_name,
         submission_code: submissionCode,
@@ -1669,7 +1866,9 @@ export const submitPublicForm = async (publicPath: string, payload: AnyPayload) 
       {
         sourceType: "public_form",
         note: null,
-        markPresent: false
+        markPresent: false,
+        enforceFormOpen: true,
+        queueSubmissionEmail: true
       },
       connection
     );
@@ -1678,6 +1877,782 @@ export const submitPublicForm = async (publicPath: string, payload: AnyPayload) 
   await dispatchPendingEmail((result as AnyPayload).pendingEmail || null);
   const { pendingEmail, ...publicResult } = result as AnyPayload;
   return publicResult;
+};
+
+const IMPORT_COLUMN_CANDIDATES_BY_USAGE: Record<string, string[]> = {
+  full_name: ["full_name", "fullname", "name", "full_name_th", "participant_name"],
+  first_name: ["first_name", "firstname", "fname"],
+  last_name: ["last_name", "lastname", "lname", "surname"],
+  email: ["email", "email_address", "mail", "e_mail"],
+  phone: ["phone", "phone_number", "mobile", "tel"],
+  student_code: ["student_code", "student_id", "student_no"],
+  birth_date: ["birth_date", "birthday", "dob"]
+};
+
+const getImportValueForField = (field: AnyPayload, cells: Record<string, string>) => {
+  const candidates = new Set<string>();
+  const usage = normalizeKey(field.field_usage);
+  const code = normalizeKey(field.field_code);
+  const label = normalizeKey(field.field_label);
+
+  if (usage && IMPORT_COLUMN_CANDIDATES_BY_USAGE[usage]) {
+    IMPORT_COLUMN_CANDIDATES_BY_USAGE[usage].forEach((column) => candidates.add(column));
+  }
+
+  if (usage) {
+    candidates.add(usage);
+  }
+
+  if (code) {
+    candidates.add(code);
+  }
+
+  if (label) {
+    candidates.add(label);
+  }
+
+  for (const column of candidates) {
+    if (!Object.prototype.hasOwnProperty.call(cells, column)) {
+      continue;
+    }
+
+    const value = cells[column];
+    if (value !== "") {
+      return value;
+    }
+  }
+
+  return "";
+};
+
+const toCheckboxImportValues = (rawValue: string) =>
+  rawValue
+    .split(/[,|;]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const buildImportAnswersPayload = (fields: AnyPayload[], cells: Record<string, string>) => {
+  const answers: Record<string, unknown> = {};
+
+  for (const field of fields) {
+    const rawValue = getImportValueForField(field, cells);
+
+    if (!rawValue) {
+      continue;
+    }
+
+    if (field.field_type === "checkboxes") {
+      answers[String(field.id)] = toCheckboxImportValues(rawValue);
+      continue;
+    }
+
+    answers[String(field.id)] = rawValue;
+  }
+
+  return answers;
+};
+
+const getFormRowForImport = async (formId: number, connection?: PoolConnection) => {
+  const rows = await queryRows<AnyRow>(
+    `
+      SELECT
+        form_id,
+        project_id,
+        form_name,
+        public_path,
+        form_type,
+        status,
+        start_at,
+        end_at,
+        success_title,
+        success_message,
+        settings_json
+      FROM form_forms
+      WHERE form_id = ?
+        AND deleted_at IS NULL
+      LIMIT 1
+    `,
+    [formId],
+    connection
+  );
+
+  return rows[0] || null;
+};
+
+const getExistingImportEmailRows = async (formId: number, connection?: PoolConnection) =>
+  queryRows<AnyRow>(
+    `
+      SELECT
+        s.submission_id,
+        s.attendance_status,
+        s.check_in_at,
+        LOWER(TRIM(a.answer_text)) AS email_value
+      FROM entry_submissions s
+      INNER JOIN entry_submission_answers a ON a.submission_id = s.submission_id
+      INNER JOIN form_fields f ON f.field_id = a.field_id
+      WHERE s.form_id = ?
+        AND s.source_type = 'import_excel'
+        AND s.deleted_at IS NULL
+        AND a.deleted_at IS NULL
+        AND f.deleted_at IS NULL
+        AND f.field_usage = 'email'
+        AND a.answer_text IS NOT NULL
+    `,
+    [formId],
+    connection
+  );
+
+const buildExistingImportByEmail = (rows: AnyRow[]) =>
+  rows.reduce<Record<string, AnyRow>>((lookup, row) => {
+    const email = sanitizeEmail(row.email_value);
+    if (email && !lookup[email]) {
+      lookup[email] = row;
+    }
+    return lookup;
+  }, {});
+
+const buildImportPreviewRows = (
+  parsedRows: ParsedImportRow[],
+  fields: AnyPayload[],
+  emailFieldId: string,
+  existingImportByEmail: Record<string, AnyRow>
+) => {
+  const incomingEmails = new Set<string>();
+  const previewRows: ImportPreviewRow[] = [];
+
+  let readyToInsert = 0;
+  let skippedDuplicates = 0;
+  let reactivateCount = 0;
+  let failedRows = 0;
+
+  for (const parsedRow of parsedRows) {
+    const answersPayload = buildImportAnswersPayload(fields, parsedRow.cells);
+    const emailValue = sanitizeEmail(answersPayload[emailFieldId]);
+
+    if (!emailValue) {
+      failedRows += 1;
+      previewRows.push({
+        row: parsedRow.row,
+        email: "",
+        status: "error",
+        message: "ไม่พบค่า email ในแถวนี้",
+        values: parsedRow.cells
+      });
+      continue;
+    }
+
+    if (!emailValue.includes("@")) {
+      failedRows += 1;
+      previewRows.push({
+        row: parsedRow.row,
+        email: emailValue,
+        status: "error",
+        message: "รูปแบบ email ไม่ถูกต้อง",
+        values: parsedRow.cells
+      });
+      continue;
+    }
+
+    if (incomingEmails.has(emailValue)) {
+      skippedDuplicates += 1;
+      previewRows.push({
+        row: parsedRow.row,
+        email: emailValue,
+        status: "skip_duplicate",
+        message: "อีเมลซ้ำในไฟล์ import เดียวกัน",
+        values: parsedRow.cells
+      });
+      continue;
+    }
+
+    incomingEmails.add(emailValue);
+
+    const existingRow = existingImportByEmail[emailValue];
+    if (existingRow) {
+      if (String(existingRow.attendance_status || "") === "cancelled" && !existingRow.check_in_at) {
+        reactivateCount += 1;
+        previewRows.push({
+          row: parsedRow.row,
+          email: emailValue,
+          status: "reactivate",
+          message: "พบในระบบสถานะ cancelled (จะ re-activate เป็น submitted)",
+          values: parsedRow.cells
+        });
+        continue;
+      }
+
+      skippedDuplicates += 1;
+      previewRows.push({
+        row: parsedRow.row,
+        email: emailValue,
+        status: "skip_duplicate",
+        message: "อีเมลนี้มีอยู่แล้วใน submissions",
+        values: parsedRow.cells
+      });
+      continue;
+    }
+
+    readyToInsert += 1;
+    previewRows.push({
+      row: parsedRow.row,
+      email: emailValue,
+      status: "ready_insert",
+      message: "พร้อมนำเข้า",
+      values: parsedRow.cells
+    });
+  }
+
+  return {
+    previewRows,
+    incomingEmails,
+    readyToInsert,
+    skippedDuplicates,
+    reactivateCount,
+    failedRows
+  };
+};
+
+export const previewImportFormSubmissionsFromExcel = async (
+  formId: number,
+  fileBuffer: Buffer
+): Promise<ImportPreviewResult> => {
+  const parsedFile = parseExcelFile(fileBuffer);
+  const parsedRows = parsedFile.rows;
+
+  const formRow = await getFormRowForImport(formId);
+  if (!formRow) {
+    throw new Error("ไม่พบฟอร์มที่ต้องการ import");
+  }
+
+  const fields = await loadDraftFields(formId);
+  const emailField = fields.find((field) => String(field.field_usage) === "email");
+
+  if (!emailField) {
+    throw new Error("ฟอร์มนี้ไม่มีฟิลด์ประเภท email (field_usage=email)");
+  }
+
+  const existingEmailRows = await getExistingImportEmailRows(formId);
+  const existingImportByEmail = buildExistingImportByEmail(existingEmailRows);
+  const analysis = buildImportPreviewRows(
+    parsedRows,
+    fields,
+    String(emailField.id),
+    existingImportByEmail
+  );
+
+  const candidatesToCancel = existingEmailRows.filter((row) => {
+    const email = sanitizeEmail(row.email_value);
+    if (!email) {
+      return false;
+    }
+
+    if (analysis.incomingEmails.has(email)) {
+      return false;
+    }
+
+    const attendanceStatus = String(row.attendance_status || "submitted");
+    return attendanceStatus !== "present" && attendanceStatus !== "completed";
+  });
+
+  return {
+    ok: true,
+    mode: "sync",
+    duplicate_policy: "skip",
+    limits: {
+      max_file_bytes: IMPORT_MAX_FILE_BYTES,
+      max_rows: IMPORT_MAX_ROWS
+    },
+    summary: {
+      total_rows: parsedRows.length,
+      processed_rows: parsedRows.length,
+      ready_to_insert: analysis.readyToInsert,
+      skipped_duplicates: analysis.skippedDuplicates,
+      reactivate_count: analysis.reactivateCount,
+      cancelled_missing: candidatesToCancel.length,
+      failed_rows: analysis.failedRows
+    },
+    preview: {
+      headers: parsedFile.headers,
+      rows: analysis.previewRows
+    }
+  };
+};
+
+export const buildImportTemplateExcel = async (formId: number): Promise<ImportTemplateFile> => {
+  const formRows = await queryRows<AnyRow>(
+    `
+      SELECT form_id, form_name
+      FROM form_forms
+      WHERE form_id = ?
+        AND deleted_at IS NULL
+      LIMIT 1
+    `,
+    [formId]
+  );
+
+  const formRow = formRows[0];
+  if (!formRow) {
+    throw new Error("ไม่พบฟอร์มที่ต้องการสร้าง template");
+  }
+
+  const fields = await loadDraftFields(formId);
+  if (fields.length === 0) {
+    throw new Error("ฟอร์มนี้ยังไม่มีฟิลด์สำหรับสร้าง template");
+  }
+
+  const rawHeaders = fields.map((field) => {
+    const usage = normalizeKey(field.field_usage);
+    const fieldCode = normalizeKey(field.field_code);
+
+    if (usage && usage !== "general") {
+      return usage;
+    }
+
+    return fieldCode || usage || "column";
+  });
+
+  const headers = toUniqueHeaders(rawHeaders);
+
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.aoa_to_sheet([headers]);
+  XLSX.utils.book_append_sheet(workbook, sheet, "import_template");
+
+  const buffer = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "buffer"
+  }) as Buffer;
+
+  return {
+    fileName: `import_template_form_${formRow.form_id}.xlsx`,
+    buffer
+  };
+};
+
+export const exportFormSubmissionsExcel = async (
+  formId: number,
+  filters: SubmissionExportFilter
+): Promise<ImportTemplateFile> => {
+  const formRows = await queryRows<AnyRow>(
+    `
+      SELECT form_id, form_name
+      FROM form_forms
+      WHERE form_id = ?
+        AND deleted_at IS NULL
+      LIMIT 1
+    `,
+    [formId]
+  );
+
+  const formRow = formRows[0];
+  if (!formRow) {
+    throw new Error("ไม่พบฟอร์มที่ต้องการ export");
+  }
+
+  const whereParts = ["s.form_id = ?", "s.deleted_at IS NULL"];
+  const params: unknown[] = [formId];
+
+  if (filters.attendance_status) {
+    whereParts.push("s.attendance_status = ?");
+    params.push(filters.attendance_status);
+  }
+
+  if (filters.source_type) {
+    whereParts.push("s.source_type = ?");
+    params.push(filters.source_type);
+  }
+
+  if (filters.submitted_from) {
+    whereParts.push("s.submitted_at >= ?");
+    params.push(filters.submitted_from);
+  }
+
+  if (filters.submitted_to) {
+    whereParts.push("s.submitted_at <= ?");
+    params.push(filters.submitted_to);
+  }
+
+  const submissionRows = await queryRows<AnyRow>(
+    `
+      SELECT
+        s.submission_id,
+        s.submission_code,
+        s.submitted_at,
+        s.attendance_status,
+        s.check_in_at,
+        s.check_out_at,
+        s.source_type,
+        s.notes
+      FROM entry_submissions s
+      WHERE ${whereParts.join(" AND ")}
+      ORDER BY s.submission_id ASC
+    `,
+    params
+  );
+
+  const fields = await loadDraftFields(formId);
+  const fieldHeaderRaw = fields.map((field, index) => {
+    const usage = normalizeKey(field.field_usage);
+    const code = normalizeKey(field.field_code);
+    const label = normalizeKey(field.field_label);
+    if (usage && usage !== "general") {
+      return usage;
+    }
+    return code || label || `field_${index + 1}`;
+  });
+  const fieldHeaders = toUniqueHeaders(fieldHeaderRaw);
+
+  const submissionIds = submissionRows.map((row) => Number(row.submission_id));
+  const answerRows = await getSubmissionAnswerRows(submissionIds);
+  const answerIds = answerRows.map((row) => Number(row.answer_id));
+  const checkboxOptionRows = await getAnswerOptionRows(answerIds);
+  const fileRows = await getAnswerFileRows(answerIds);
+
+  const checkboxValuesByAnswerId = checkboxOptionRows.reduce<Record<number, string[]>>(
+    (lookup, checkboxRow) => {
+      const answerId = Number(checkboxRow.answer_id);
+      if (!lookup[answerId]) {
+        lookup[answerId] = [];
+      }
+      lookup[answerId].push(checkboxRow.option_label || checkboxRow.option_value || "");
+      return lookup;
+    },
+    {}
+  );
+
+  const filesByAnswerId = fileRows.reduce<Record<number, string[]>>((lookup, fileRow) => {
+    const answerId = Number(fileRow.answer_id);
+    if (!lookup[answerId]) {
+      lookup[answerId] = [];
+    }
+    lookup[answerId].push(fileRow.original_file_name || "");
+    return lookup;
+  }, {});
+
+  const answersBySubmissionId = answerRows.reduce<Record<number, AnyRow[]>>((lookup, row) => {
+    const submissionId = Number(row.submission_id);
+    if (!lookup[submissionId]) {
+      lookup[submissionId] = [];
+    }
+    lookup[submissionId].push(row);
+    return lookup;
+  }, {});
+
+  const answerBySubmissionAndField = answerRows.reduce<Record<string, AnyRow>>((lookup, row) => {
+    const key = `${row.submission_id}_${row.field_id}`;
+    lookup[key] = row;
+    return lookup;
+  }, {});
+
+  const keyword = normalizeCellString(filters.keyword).toLowerCase();
+  const filteredSubmissions = keyword
+    ? submissionRows.filter((row) => {
+        const identity = toRespondentIdentity(answersBySubmissionId[Number(row.submission_id)] || []);
+        const text = [
+          row.submission_code,
+          identity.respondentName,
+          identity.respondentEmail,
+          row.attendance_status,
+          row.source_type
+        ]
+          .join(" ")
+          .toLowerCase();
+        return text.includes(keyword);
+      })
+    : submissionRows;
+
+  const metadataHeaders = [
+    "submission_id",
+    "submission_code",
+    "submitted_at",
+    "attendance_status",
+    "check_in_at",
+    "check_out_at",
+    "source_type",
+    "respondent_name",
+    "respondent_email",
+    "note"
+  ];
+
+  const allHeaders = [...metadataHeaders, ...fieldHeaders];
+  const dataRows = filteredSubmissions.map((submissionRow) => {
+    const submissionId = Number(submissionRow.submission_id);
+    const identity = toRespondentIdentity(answersBySubmissionId[submissionId] || []);
+
+    const base = [
+      submissionId,
+      submissionRow.submission_code || "",
+      toDateTime(submissionRow.submitted_at),
+      submissionRow.attendance_status || "",
+      toDateTime(submissionRow.check_in_at),
+      toDateTime(submissionRow.check_out_at),
+      submissionRow.source_type || "",
+      identity.respondentName,
+      identity.respondentEmail,
+      submissionRow.notes || ""
+    ];
+
+    const answerValues = fields.map((field) => {
+      const answerRow = answerBySubmissionAndField[`${submissionId}_${field.id}`];
+      if (!answerRow) {
+        return "";
+      }
+
+      return mapAnswerValue(
+        answerRow,
+        checkboxValuesByAnswerId[Number(answerRow.answer_id)] || [],
+        filesByAnswerId[Number(answerRow.answer_id)] || []
+      );
+    });
+
+    return [...base, ...answerValues];
+  });
+
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.aoa_to_sheet([allHeaders, ...dataRows]);
+  XLSX.utils.book_append_sheet(workbook, sheet, "submissions");
+
+  const buffer = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "buffer"
+  }) as Buffer;
+
+  return {
+    fileName: `submissions_form_${formRow.form_id}.xlsx`,
+    buffer
+  };
+};
+
+export const importFormSubmissionsFromExcel = async (
+  formId: number,
+  fileBuffer: Buffer
+): Promise<ImportSubmissionResult> => {
+  const parsedRows = parseExcelRows(fileBuffer);
+  const errors: ImportSubmissionRowError[] = [];
+
+  const summary = {
+    total_rows: parsedRows.length,
+    processed_rows: 0,
+    inserted: 0,
+    skipped_duplicates: 0,
+    cancelled_missing: 0,
+    failed_rows: 0
+  };
+
+  if (!parsedRows.length) {
+    return {
+      ok: true,
+      mode: "sync",
+      duplicate_policy: "skip",
+      limits: {
+        max_file_bytes: IMPORT_MAX_FILE_BYTES,
+        max_rows: IMPORT_MAX_ROWS
+      },
+      summary,
+      errors
+    };
+  }
+
+  await withTransaction(async (connection) => {
+    const formRows = await queryRows<AnyRow>(
+      `
+        SELECT
+          form_id,
+          project_id,
+          form_name,
+          public_path,
+          form_type,
+          status,
+          start_at,
+          end_at,
+          success_title,
+          success_message,
+          settings_json
+        FROM form_forms
+        WHERE form_id = ?
+          AND deleted_at IS NULL
+        LIMIT 1
+      `,
+      [formId],
+      connection
+    );
+
+    const formRow = formRows[0];
+    if (!formRow) {
+      throw new Error("ไม่พบฟอร์มที่ต้องการ import");
+    }
+
+    const fields = await loadDraftFields(formId, connection);
+    const emailField = fields.find((field) => String(field.field_usage) === "email");
+
+    if (!emailField) {
+      throw new Error("ฟอร์มนี้ไม่มีฟิลด์ประเภท email (field_usage=email)");
+    }
+
+    const existingEmailRows = await queryRows<AnyRow>(
+      `
+        SELECT
+          s.submission_id,
+          s.attendance_status,
+          s.check_in_at,
+          LOWER(TRIM(a.answer_text)) AS email_value
+        FROM entry_submissions s
+        INNER JOIN entry_submission_answers a ON a.submission_id = s.submission_id
+        INNER JOIN form_fields f ON f.field_id = a.field_id
+        WHERE s.form_id = ?
+          AND s.source_type = 'import_excel'
+          AND s.deleted_at IS NULL
+          AND a.deleted_at IS NULL
+          AND f.deleted_at IS NULL
+          AND f.field_usage = 'email'
+          AND a.answer_text IS NOT NULL
+      `,
+      [formId],
+      connection
+    );
+
+    const existingImportByEmail = existingEmailRows.reduce<Record<string, AnyRow>>((lookup, row) => {
+      const email = sanitizeEmail(row.email_value);
+      if (email && !lookup[email]) {
+        lookup[email] = row;
+      }
+      return lookup;
+    }, {});
+
+    const incomingEmails = new Set<string>();
+
+    for (const parsedRow of parsedRows) {
+      summary.processed_rows += 1;
+
+      const answersPayload = buildImportAnswersPayload(fields, parsedRow.cells);
+      const emailValue = sanitizeEmail(answersPayload[String(emailField.id)]);
+
+      if (!emailValue) {
+        summary.failed_rows += 1;
+        if (errors.length < IMPORT_ERROR_LIMIT) {
+          errors.push({
+            row: parsedRow.row,
+            email: "",
+            message: "ไม่พบค่า email ในแถวนี้"
+          });
+        }
+        continue;
+      }
+
+      if (!emailValue.includes("@")) {
+        summary.failed_rows += 1;
+        if (errors.length < IMPORT_ERROR_LIMIT) {
+          errors.push({
+            row: parsedRow.row,
+            email: emailValue,
+            message: "รูปแบบ email ไม่ถูกต้อง"
+          });
+        }
+        continue;
+      }
+
+      if (incomingEmails.has(emailValue)) {
+        summary.skipped_duplicates += 1;
+        continue;
+      }
+
+      incomingEmails.add(emailValue);
+
+      if (existingImportByEmail[emailValue]) {
+        const existingRow = existingImportByEmail[emailValue];
+        if (String(existingRow.attendance_status || "") === "cancelled" && !existingRow.check_in_at) {
+          await execute(
+            `
+              UPDATE entry_submissions
+              SET attendance_status = 'submitted',
+                  notes = CONCAT(COALESCE(notes, ''), CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE ' | ' END, 'reactivated by import sync')
+              WHERE submission_id = ?
+                AND deleted_at IS NULL
+            `,
+            [Number(existingRow.submission_id)],
+            connection
+          );
+        }
+        summary.skipped_duplicates += 1;
+        continue;
+      }
+
+      const submitResult = await submitFormForRow(
+        formRow,
+        {
+          answers: answersPayload
+        },
+        {
+          sourceType: "import_excel",
+          note: "นำเข้าจากไฟล์ Excel",
+          markPresent: false,
+          enforceFormOpen: false,
+          queueSubmissionEmail: false
+        },
+        connection
+      );
+
+      if (!submitResult.ok) {
+        summary.failed_rows += 1;
+        if (errors.length < IMPORT_ERROR_LIMIT) {
+          errors.push({
+            row: parsedRow.row,
+            email: emailValue,
+            message: "ไม่สามารถสร้าง submission จากแถวนี้ได้"
+          });
+        }
+        continue;
+      }
+
+      summary.inserted += 1;
+    }
+
+    const candidatesToCancel = existingEmailRows
+      .filter((row) => {
+        const email = sanitizeEmail(row.email_value);
+        if (!email) {
+          return false;
+        }
+
+        if (incomingEmails.has(email)) {
+          return false;
+        }
+
+        const attendanceStatus = String(row.attendance_status || "submitted");
+        return attendanceStatus !== "present" && attendanceStatus !== "completed";
+      })
+      .map((row) => Number(row.submission_id));
+
+    if (candidatesToCancel.length > 0) {
+      const placeholders = candidatesToCancel.map(() => "?").join(", ");
+      await execute(
+        `
+          UPDATE entry_submissions
+          SET attendance_status = 'cancelled',
+              notes = CONCAT(COALESCE(notes, ''), CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE ' | ' END, 'auto-cancelled by import sync')
+          WHERE submission_id IN (${placeholders})
+            AND deleted_at IS NULL
+            AND source_type = 'import_excel'
+            AND attendance_status <> 'present'
+            AND attendance_status <> 'completed'
+        `,
+        candidatesToCancel,
+        connection
+      );
+      summary.cancelled_missing = candidatesToCancel.length;
+    }
+  });
+
+  return {
+    ok: true,
+    mode: "sync",
+    duplicate_policy: "skip",
+    limits: {
+      max_file_bytes: IMPORT_MAX_FILE_BYTES,
+      max_rows: IMPORT_MAX_ROWS
+    },
+    summary,
+    errors
+  };
 };
 
 export const listItems = async () => {

@@ -16,6 +16,10 @@ export const adminDataAdapter = {
   listSubmissions: (...args) => provider.listSubmissions(...args),
   getSubmissionDetail: (...args) => provider.getSubmissionDetail(...args),
   updateSubmission: (...args) => provider.updateSubmission(...args),
+  previewImportFormSubmissionsExcel: (...args) => provider.previewImportFormSubmissionsExcel(...args),
+  importFormSubmissionsExcel: (...args) => provider.importFormSubmissionsExcel(...args),
+  downloadFormImportTemplate: (...args) => provider.downloadFormImportTemplate(...args),
+  exportFormSubmissionsExcel: (...args) => provider.exportFormSubmissionsExcel(...args),
 
   getPublicForm: (...args) => provider.getPublicForm(...args),
   submitPublicForm: (...args) => provider.submitPublicForm(...args),

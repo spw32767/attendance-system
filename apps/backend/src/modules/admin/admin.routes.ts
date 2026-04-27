@@ -1,7 +1,12 @@
 import { FastifyPluginAsync } from "fastify";
+import fastifyMultipart from "@fastify/multipart";
 import {
+  buildImportTemplateExcel,
+  exportFormSubmissionsExcel,
   getFormDraft,
   getSubmissionDetail,
+  importFormSubmissionsFromExcel,
+  previewImportFormSubmissionsFromExcel,
   listAdminLoginLogs,
   listClaims,
   listEmailLogs,
@@ -32,6 +37,8 @@ const toNumber = (value: unknown) => {
 };
 
 const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
+  await fastify.register(fastifyMultipart);
+
   fastify.get("/admin/projects", async () => ({ data: await listProjects() }));
 
   fastify.post("/admin/projects", async (request) => {
@@ -93,6 +100,126 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
     const body = (request.body || {}) as Record<string, any>;
     await updateSubmission(Number(submissionId), body);
     return { ok: true };
+  });
+
+  fastify.get("/admin/forms/:formId/submissions/import-template", async (request, reply) => {
+    const formId = toNumber((request.params as Record<string, string>).formId);
+    if (!formId) {
+      reply.code(400);
+      return { message: "formId ไม่ถูกต้อง" };
+    }
+
+    try {
+      const template = await buildImportTemplateExcel(Number(formId));
+      reply.header(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      reply.header("Content-Disposition", `attachment; filename="${template.fileName}"`);
+      return reply.send(template.buffer);
+    } catch (error) {
+      reply.code(400);
+      return {
+        message: error instanceof Error ? error.message : "ไม่สามารถสร้าง template ได้"
+      };
+    }
+  });
+
+  fastify.post("/admin/forms/:formId/submissions/import-excel/preview", async (request, reply) => {
+    const formId = toNumber((request.params as Record<string, string>).formId);
+    if (!formId) {
+      reply.code(400);
+      return { message: "formId ไม่ถูกต้อง" };
+    }
+
+    const file = await request.file();
+    if (!file) {
+      reply.code(400);
+      return { message: "ไม่พบไฟล์สำหรับพรีวิว" };
+    }
+
+    try {
+      const fileBuffer = await file.toBuffer();
+      return previewImportFormSubmissionsFromExcel(Number(formId), fileBuffer);
+    } catch (error) {
+      reply.code(400);
+      return {
+        message: error instanceof Error ? error.message : "ไม่สามารถพรีวิวไฟล์ได้"
+      };
+    }
+  });
+
+  fastify.post("/admin/forms/:formId/submissions/import-excel", async (request, reply) => {
+    const formId = toNumber((request.params as Record<string, string>).formId);
+    if (!formId) {
+      reply.code(400);
+      return { message: "formId ไม่ถูกต้อง" };
+    }
+
+    const file = await request.file();
+    if (!file) {
+      reply.code(400);
+      return { message: "ไม่พบไฟล์สำหรับนำเข้า" };
+    }
+
+    const allowedMimeTypes = new Set([
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "text/csv",
+      "application/csv"
+    ]);
+
+    const fileName = String(file.filename || "").toLowerCase();
+    const fileExtensionValid =
+      fileName.endsWith(".xlsx") || fileName.endsWith(".xls") || fileName.endsWith(".csv");
+    const mimeTypeValid = allowedMimeTypes.has(String(file.mimetype || "").toLowerCase());
+
+    if (!fileExtensionValid && !mimeTypeValid) {
+      reply.code(400);
+      return { message: "รองรับเฉพาะไฟล์ .xlsx, .xls หรือ .csv" };
+    }
+
+    try {
+      const fileBuffer = await file.toBuffer();
+      return importFormSubmissionsFromExcel(Number(formId), fileBuffer);
+    } catch (error) {
+      reply.code(400);
+      return {
+        message: error instanceof Error ? error.message : "ไม่สามารถนำเข้าไฟล์ได้"
+      };
+    }
+  });
+
+  fastify.get("/admin/forms/:formId/submissions/export-excel", async (request, reply) => {
+    const formId = toNumber((request.params as Record<string, string>).formId);
+    if (!formId) {
+      reply.code(400);
+      return { message: "formId ไม่ถูกต้อง" };
+    }
+
+    const query = (request.query || {}) as Record<string, any>;
+
+    try {
+      const file = await exportFormSubmissionsExcel(Number(formId), {
+        attendance_status: query.attendance_status ? String(query.attendance_status) : undefined,
+        source_type: query.source_type ? String(query.source_type) : undefined,
+        keyword: query.keyword ? String(query.keyword) : undefined,
+        submitted_from: query.submitted_from ? String(query.submitted_from) : undefined,
+        submitted_to: query.submitted_to ? String(query.submitted_to) : undefined
+      });
+
+      reply.header(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      reply.header("Content-Disposition", `attachment; filename="${file.fileName}"`);
+      return reply.send(file.buffer);
+    } catch (error) {
+      reply.code(400);
+      return {
+        message: error instanceof Error ? error.message : "ไม่สามารถ export ข้อมูลได้"
+      };
+    }
   });
 
   fastify.get("/public/forms/:publicPath", async (request) => {

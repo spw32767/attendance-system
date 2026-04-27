@@ -58,6 +58,74 @@ const request = async (path, options = {}) => {
   return data;
 };
 
+const requestFormData = async (path, formData, options = {}) => {
+  const response = await fetch(buildUrl(path, options.params), {
+    method: options.method || "POST",
+    headers: {
+      ...(options.headers || {})
+    },
+    body: formData
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    throw new Error(data?.message || `Request failed: ${response.status}`);
+  }
+
+  return data;
+};
+
+const parseFileNameFromDisposition = (value) => {
+  if (!value) {
+    return "template.xlsx";
+  }
+
+  const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(value);
+  const encoded = match?.[1];
+  const plain = match?.[2];
+
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded);
+    } catch {
+      return encoded;
+    }
+  }
+
+  return plain || "template.xlsx";
+};
+
+const downloadFile = async (path, params) => {
+  const response = await fetch(buildUrl(path, params));
+
+  if (!response.ok) {
+    const text = await response.text();
+    let message = `Request failed: ${response.status}`;
+    if (text) {
+      try {
+        const data = JSON.parse(text);
+        message = data?.message || message;
+      } catch {
+        message = text;
+      }
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const fileName = parseFileNameFromDisposition(response.headers.get("content-disposition"));
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 const readCollection = async (path, params) => {
   const result = await request(path, { params });
   return result?.data || [];
@@ -111,6 +179,32 @@ export const apiAdminService = {
       method: "PATCH",
       body: payload
     }),
+
+  importFormSubmissionsExcel: (formId, file, options = {}) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("mode", options.mode || "sync");
+    formData.append("duplicate_policy", options.duplicatePolicy || "skip");
+
+    return requestFormData(`/admin/forms/${formId}/submissions/import-excel`, formData, {
+      method: "POST"
+    });
+  },
+
+  previewImportFormSubmissionsExcel: (formId, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return requestFormData(`/admin/forms/${formId}/submissions/import-excel/preview`, formData, {
+      method: "POST"
+    });
+  },
+
+  downloadFormImportTemplate: (formId) =>
+    downloadFile(`/admin/forms/${formId}/submissions/import-template`),
+
+  exportFormSubmissionsExcel: (formId, params = {}) =>
+    downloadFile(`/admin/forms/${formId}/submissions/export-excel`, params),
 
   getPublicForm: (publicPath) => request(`/public/forms/${encodeURIComponent(publicPath)}`),
 

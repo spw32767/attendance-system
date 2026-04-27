@@ -607,6 +607,24 @@ function App() {
     setSubmissionDetail(nextDetail);
   };
 
+  const handleImportSubmissionsExcel = async (formId, file, options = {}) => {
+    const result = await adminDataAdapter.importFormSubmissionsExcel(formId, file, options);
+    const [nextSubmissions, nextClaims] = await Promise.all([
+      adminDataAdapter.listSubmissions(),
+      adminDataAdapter.listClaims()
+    ]);
+    setSubmissions(nextSubmissions);
+    setClaims(nextClaims);
+    return result;
+  };
+
+  const handlePreviewImportSubmissionsExcel = async (formId, file) =>
+    adminDataAdapter.previewImportFormSubmissionsExcel(formId, file);
+
+  const handleExportSubmissionsExcel = async (formId, filters = {}) => {
+    await adminDataAdapter.exportFormSubmissionsExcel(formId, filters);
+  };
+
   const handleToggleProjectUsage = async (projectId, isActive) => {
     await adminDataAdapter.setProjectUsage(projectId, isActive);
     const [nextProjects] = await Promise.all([adminDataAdapter.listProjects()]);
@@ -941,6 +959,9 @@ function App() {
         }}
         onOpenSubmission={(submissionId) => navigate(`/admin/submissions/${submissionId}`)}
         onUpdateSubmission={handleUpdateSubmission}
+        onPreviewImportSubmissionsExcel={handlePreviewImportSubmissionsExcel}
+        onImportSubmissionsExcel={handleImportSubmissionsExcel}
+        onExportSubmissionsExcel={handleExportSubmissionsExcel}
         onLogout={() => navigate(PATH_LOGIN, { replace: true })}
         theme={theme}
         onToggleTheme={toggleTheme}
