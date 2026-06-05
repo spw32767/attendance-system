@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
+import { Button, PageHead } from "../components/ui";
 import AdminLayout from "../components/AdminLayout";
 import TableActionMenu from "../components/TableActionMenu";
 
@@ -133,39 +134,22 @@ function AttendanceTemplatesPage({
       currentRole={currentRole}
       onRoleChange={onRoleChange}
     >
-      <section className="templates-head">
-        <div className="page-head-body">
-          <p className="page-kicker">Forms</p>
-          <h1>ฟอร์มของโครงการ</h1>
-          <p className="page-summary">
-            {project.project_name} ({project.project_code})
-          </p>
-          <div className="page-stats">
-            <div className="page-stat">
-              <strong>{templates.length}</strong>
-              <span>ฟอร์มทั้งหมด</span>
-            </div>
-            <div className="page-stat">
-              <strong>{publishedCount}</strong>
-              <span>พร้อมใช้งาน</span>
-            </div>
-            <div className="page-stat">
-              <strong>{draftCount}</strong>
-              <span>ฉบับร่าง</span>
-            </div>
-          </div>
-        </div>
-        <div className="page-head-actions inline-action-row">
-          <button className="ghost-button icon-text-button" type="button" onClick={onBackToProjects}>
-            <ArrowLeft size={15} strokeWidth={2} />
-            <span>กลับไปหน้าโครงการ</span>
-          </button>
-          <button className="primary-button icon-text-button" type="button" onClick={onCreateTemplate}>
-            <Plus size={16} strokeWidth={2.4} />
-            <span>สร้างฟอร์ม</span>
-          </button>
-        </div>
-      </section>
+      <PageHead
+        title="ฟอร์มของโครงการ"
+        meta={`${project.project_name} · ${templates.length} ฟอร์ม · ${publishedCount} พร้อมใช้งาน · ${draftCount} ฉบับร่าง`}
+        actions={
+          <>
+            <Button variant="ghost" onClick={onBackToProjects}>
+              <ArrowLeft size={14} aria-hidden="true" />
+              <span>กลับไปหน้าโครงการ</span>
+            </Button>
+            <Button variant="primary" onClick={onCreateTemplate}>
+              <Plus size={14} aria-hidden="true" />
+              <span>สร้างฟอร์ม</span>
+            </Button>
+          </>
+        }
+      />
 
       <section className="templates-card">
         <div className="templates-search-row">
@@ -245,22 +229,22 @@ function AttendanceTemplatesPage({
                       </td>
                       <td className="table-col-actions-wide">
                         <div className="table-actions">
-                          <button
-                            className="table-action-button table-action-button-primary"
-                            type="button"
+                          <Button
+                            variant="primary"
+                            size="sm"
                             onClick={() => onEditTemplate(template.form_id)}
                           >
-                            <Pencil size={13} strokeWidth={2} />
+                            <Pencil size={13} strokeWidth={2} aria-hidden="true" />
                             <span>แก้ไข</span>
-                          </button>
-                          <button
-                            className="table-action-button table-action-button-secondary"
-                            type="button"
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => onOpenSubmissions(template.form_id)}
                           >
-                            <ClipboardList size={13} strokeWidth={2} />
+                            <ClipboardList size={13} strokeWidth={2} aria-hidden="true" />
                             <span>คำตอบ</span>
-                          </button>
+                          </Button>
                           <TableActionMenu
                             label="การจัดการฟอร์มเพิ่มเติม"
                             items={[

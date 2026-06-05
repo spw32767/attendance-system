@@ -29,7 +29,6 @@ function ScannerClaimsPage({
     >
       <section className="templates-head">
         <div className="page-head-body">
-          <p className="page-kicker">Scanner</p>
           <h1>สแกนโทเคนรับของ</h1>
           <p className="page-summary">
             ใช้สำหรับทีมหน้างานในการตรวจสอบโทเคนรับของอย่างรวดเร็ว พร้อมดูผลลัพธ์และสถานะ claim ทันที

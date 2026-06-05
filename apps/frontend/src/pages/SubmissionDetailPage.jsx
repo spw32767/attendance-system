@@ -68,7 +68,6 @@ function SubmissionDetailPage({
     >
       <section className="templates-head">
         <div className="page-head-body">
-          <p className="page-kicker">Submission Detail</p>
           <h1>รายละเอียดคำตอบ</h1>
           <p className="page-summary">
             ตรวจสอบข้อมูลผู้ตอบ สถานะการเข้าร่วม และคำตอบรายข้อ พร้อมอัปเดตหมายเหตุได้ทันที

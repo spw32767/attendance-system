@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Pencil } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
+import { Button, PageHead } from "../components/ui";
 
 function EmailCenterPage({
   templates,
@@ -82,29 +83,10 @@ function EmailCenterPage({
       currentRole={currentRole}
       onRoleChange={onRoleChange}
     >
-      <section className="templates-head">
-        <div className="page-head-body">
-          <p className="page-kicker">Email Center</p>
-          <h1>อีเมลยืนยันและประวัติการส่ง</h1>
-          <p className="page-summary">
-            จัดการเทมเพลตแจ้งเตือนและตรวจสอบประวัติการส่งตามโครงการและฟอร์มได้จากหน้าจอเดียว
-          </p>
-          <div className="page-stats">
-            <div className="page-stat">
-              <strong>{templates.length}</strong>
-              <span>เทมเพลตทั้งหมด</span>
-            </div>
-            <div className="page-stat">
-              <strong>{activeTemplateCount}</strong>
-              <span>เทมเพลตที่ใช้งาน</span>
-            </div>
-            <div className="page-stat">
-              <strong>{logs.length}</strong>
-              <span>ประวัติการส่ง</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <PageHead
+        title="อีเมลยืนยันและประวัติการส่ง"
+        meta={`${templates.length} เทมเพลต · ${activeTemplateCount} ใช้งาน · ${logs.length} ประวัติการส่ง`}
+      />
 
       <nav className="builder-tabs" aria-label="แท็บอีเมล">
         <button
@@ -201,18 +183,18 @@ function EmailCenterPage({
                     </td>
                     <td className="table-col-actions">
                       <div className="table-actions">
-                        <button
-                          className="table-action-button table-action-button-primary"
-                          type="button"
+                        <Button
+                          variant="primary"
+                          size="sm"
                           onClick={() => {
                             setEditingTemplateId(template.email_template_id);
                             setDraftSubject(template.email_subject || "");
                             setDraftBody(template.email_body || "");
                           }}
                         >
-                          <Pencil size={13} strokeWidth={2} />
+                          <Pencil size={13} strokeWidth={2} aria-hidden="true" />
                           <span>แก้ไขข้อความ</span>
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>

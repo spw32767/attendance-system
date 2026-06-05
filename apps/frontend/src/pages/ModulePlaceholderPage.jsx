@@ -28,7 +28,6 @@ function ModulePlaceholderPage({
     >
       <section className="templates-head">
         <div className="page-head-body">
-          <p className="page-kicker">System State</p>
           <h1>{title}</h1>
           <p className="page-summary">สถานะระบบหรือหน้าจอนี้ยังต้องการการดำเนินการเพิ่มเติมก่อนจะพร้อมใช้งานเต็มรูปแบบ</p>
         </div>

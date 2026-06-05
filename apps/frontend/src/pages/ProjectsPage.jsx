@@ -8,6 +8,9 @@ import {
   ChevronRight
 } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
+import { Button, PageHead } from "../components/ui";
+
+
 
 const PAGE_SIZE = 10;
 
@@ -90,35 +93,16 @@ function ProjectsPage({
       currentRole={currentRole}
       onRoleChange={onRoleChange}
     >
-      <section className="templates-head">
-        <div className="page-head-body">
-          <p className="page-kicker">Projects</p>
-          <h1>จัดการโครงการ</h1>
-          <p className="page-summary">
-            จัดระเบียบโครงการต้นทางสำหรับฟอร์มทั้งหมด พร้อมควบคุมสถานะและกระจายไปยังหน้าจัดการฟอร์มได้ทันที
-          </p>
-          <div className="page-stats">
-            <div className="page-stat">
-              <strong>{projects.length}</strong>
-              <span>โครงการทั้งหมด</span>
-            </div>
-            <div className="page-stat">
-              <strong>{activeProjects}</strong>
-              <span>กำลังเปิดใช้งาน</span>
-            </div>
-            <div className="page-stat">
-              <strong>{projectTypes}</strong>
-              <span>ประเภทโครงการ</span>
-            </div>
-          </div>
-        </div>
-        <div className="page-head-actions">
-          <button className="primary-button icon-text-button" type="button" onClick={onCreateProject}>
-            <Plus size={16} strokeWidth={2.4} />
+      <PageHead
+        title="จัดการโครงการ"
+        meta={`${projects.length} โครงการ · ${activeProjects} เปิดใช้งาน · ${projectTypes} ประเภท`}
+        actions={
+          <Button variant="primary" onClick={onCreateProject}>
+            <Plus size={14} aria-hidden="true" />
             <span>สร้างโครงการ</span>
-          </button>
-        </div>
-      </section>
+          </Button>
+        }
+      />
 
       <section className="templates-card">
         <div className="templates-search-row">
@@ -194,22 +178,22 @@ function ProjectsPage({
                     </td>
                     <td className="table-col-actions">
                       <div className="table-actions table-actions-nowrap">
-                        <button
-                          className="table-action-button table-action-button-primary"
-                          type="button"
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => onOpenProjectForms(project.project_id)}
                         >
-                          <FileText size={13} strokeWidth={2} />
+                          <FileText size={13} strokeWidth={2} aria-hidden="true" />
                           <span>ฟอร์ม</span>
-                        </button>
-                        <button
-                          className="table-action-button table-action-button-secondary"
-                          type="button"
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
                           onClick={() => onEditProject(project.project_id)}
                         >
-                          <Pencil size={13} strokeWidth={2} />
+                          <Pencil size={13} strokeWidth={2} aria-hidden="true" />
                           <span>แก้ไข</span>
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>

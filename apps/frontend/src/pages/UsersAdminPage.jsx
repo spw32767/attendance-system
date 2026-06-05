@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import AdminLayout from "../components/AdminLayout";
+import { PageHead } from "../components/ui";
 
 const ROLE_OPTIONS = [
   { value: "admin", label: "admin" },
@@ -53,29 +54,10 @@ function UsersAdminPage({
       currentRole={currentRole}
       onRoleChange={onRoleChange}
     >
-      <section className="templates-head">
-        <div className="page-head-body">
-          <p className="page-kicker">Access</p>
-          <h1>จัดการผู้ใช้งานและ SSO</h1>
-          <p className="page-summary">
-            ปรับสิทธิ์ผู้ใช้ภายในระบบ พร้อมตรวจสอบบัญชีเชื่อมต่อ SSO ใน workflow เดียวกัน
-          </p>
-          <div className="page-stats">
-            <div className="page-stat">
-              <strong>{users.length}</strong>
-              <span>ผู้ใช้งานทั้งหมด</span>
-            </div>
-            <div className="page-stat">
-              <strong>{activeUsersCount}</strong>
-              <span>บัญชีที่ใช้งานได้</span>
-            </div>
-            <div className="page-stat">
-              <strong>{activeSsoCount}</strong>
-              <span>SSO ที่ active</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <PageHead
+        title="จัดการผู้ใช้งานและ SSO"
+        meta={`${users.length} ผู้ใช้งาน · ${activeUsersCount} ใช้งานได้ · ${activeSsoCount} SSO active`}
+      />
 
       <nav className="builder-tabs" aria-label="แท็บผู้ใช้งาน">
         <button

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
+import { PageHead } from "../components/ui";
 
 function LoginLogsPage({
   logs,
@@ -53,29 +54,10 @@ function LoginLogsPage({
       currentRole={currentRole}
       onRoleChange={onRoleChange}
     >
-      <section className="templates-head">
-        <div className="page-head-body">
-          <p className="page-kicker">Audit Trail</p>
-          <h1>ประวัติการเข้าสู่ระบบ</h1>
-          <p className="page-summary">
-            ใช้ตรวจสอบการเข้าใช้งานย้อนหลังทั้งฝั่งผู้ใช้และแอดมิน พร้อมค้นหาสถานะและอุปกรณ์ที่ใช้ล็อกอิน
-          </p>
-          <div className="page-stats">
-            <div className="page-stat">
-              <strong>{logs.length}</strong>
-              <span>เหตุการณ์ทั้งหมด</span>
-            </div>
-            <div className="page-stat">
-              <strong>{successLogs}</strong>
-              <span>เข้าสำเร็จ</span>
-            </div>
-            <div className="page-stat">
-              <strong>{logs.length - successLogs}</strong>
-              <span>ถูกปฏิเสธ</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <PageHead
+        title="ประวัติการเข้าสู่ระบบ"
+        meta={`${logs.length} เหตุการณ์ · ${successLogs} สำเร็จ · ${logs.length - successLogs} ถูกปฏิเสธ`}
+      />
 
       <section className="templates-card">
         <div className="templates-search-row">

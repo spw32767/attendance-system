@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { CheckCheck, RotateCcw, Search } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
+import { Button, PageHead } from "../components/ui";
 
 const CLAIM_STATUS_META = {
   pending: { label: "รอรับ", className: "status-pill status-pill-draft" },
@@ -81,31 +82,14 @@ function ItemsClaimsPage({
       currentRole={currentRole}
       onRoleChange={onRoleChange}
     >
-      <section className="templates-head">
-        <div className="page-head-body">
-          <p className="page-kicker">Operations</p>
-          <h1>{mode === "items" ? "รายการของตามฟอร์ม" : "ติดตามสิทธิ์รับของ"}</h1>
-          <p className="page-summary">
-            {mode === "items"
-              ? "ตรวจสอบรายการของที่ผูกกับแต่ละฟอร์ม พร้อมดูสถานะการใช้งานแบบรวมศูนย์"
-              : "ติดตามสิทธิ์รับของที่สร้างจากคำตอบแบบฟอร์มและอัปเดตสถานะการรับได้ทันที"}
-          </p>
-          <div className="page-stats">
-            <div className="page-stat">
-              <strong>{rows.length}</strong>
-              <span>{mode === "items" ? "รายการทั้งหมด" : "สิทธิ์ทั้งหมด"}</span>
-            </div>
-            <div className="page-stat">
-              <strong>{activeRowsCount}</strong>
-              <span>{mode === "items" ? "กำลังใช้งาน" : "รับแล้ว"}</span>
-            </div>
-            <div className="page-stat">
-              <strong>{pendingRowsCount}</strong>
-              <span>{mode === "items" ? "ปิดใช้งาน" : "รอรับ"}</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <PageHead
+        title={mode === "items" ? "รายการของตามฟอร์ม" : "ติดตามสิทธิ์รับของ"}
+        meta={
+          mode === "items"
+            ? `${rows.length} รายการ · ${activeRowsCount} กำลังใช้งาน · ${pendingRowsCount} ปิดใช้งาน`
+            : `${rows.length} สิทธิ์ · ${activeRowsCount} รับแล้ว · ${pendingRowsCount} รอรับ`
+        }
+      />
 
       <section className="templates-card">
         <div className="templates-search-row submissions-filters">
@@ -264,14 +248,10 @@ function ItemsClaimsPage({
                       </td>
                       <td className="table-col-actions">
                         <div className="table-actions">
-                          <button
-                            className="table-action-button table-action-button-primary"
-                            type="button"
-                            onClick={primaryAction.onClick}
-                          >
-                            <PrimaryActionIcon size={13} strokeWidth={2} />
+                          <Button variant="primary" size="sm" onClick={primaryAction.onClick}>
+                            <PrimaryActionIcon size={13} strokeWidth={2} aria-hidden="true" />
                             <span>{primaryAction.label}</span>
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>

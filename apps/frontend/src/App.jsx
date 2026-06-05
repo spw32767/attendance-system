@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ConfigProvider } from "antd";
+import { useLocation, useNavigate } from "react-router-dom";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AttendanceTemplatesPage from "./pages/AttendanceTemplatesPage";
 import CreateAttendanceTemplatePage from "./pages/CreateAttendanceTemplatePage";
@@ -192,7 +192,12 @@ const parseRoute = (target) => {
 };
 
 function App() {
-  const [route, setRoute] = useState(() => parseRoute(window.location.href));
+  const location = useLocation();
+  const rrNavigate = useNavigate();
+  const route = useMemo(
+    () => parseRoute(`${location.pathname}${location.search}`),
+    [location.pathname, location.search]
+  );
   const [theme, setTheme] = useState(() => {
     const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (savedTheme === "light" || savedTheme === "dark") {
@@ -223,26 +228,12 @@ function App() {
   });
 
   useEffect(() => {
-    const normalized = parseRoute(window.location.href);
-    const expectedUrl = `${normalized.pathname}${normalized.search}`;
-    const currentUrl = `${window.location.pathname}${window.location.search}`;
-
+    const expectedUrl = `${route.pathname}${route.search}`;
+    const currentUrl = `${location.pathname}${location.search}`;
     if (expectedUrl !== currentUrl) {
-      window.history.replaceState({}, "", expectedUrl);
-      setRoute(normalized);
+      rrNavigate(expectedUrl, { replace: true });
     }
-  }, []);
-
-  useEffect(() => {
-    const onPopState = () => {
-      setRoute(parseRoute(window.location.href));
-    };
-
-    window.addEventListener("popstate", onPopState);
-    return () => {
-      window.removeEventListener("popstate", onPopState);
-    };
-  }, []);
+  }, [location.pathname, location.search, route.pathname, route.search, rrNavigate]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -323,11 +314,7 @@ function App() {
 
   const navigate = (target, options = {}) => {
     const nextRoute = parseRoute(target);
-    const nextUrl = `${nextRoute.pathname}${nextRoute.search}`;
-    const method = options.replace ? "replaceState" : "pushState";
-
-    window.history[method]({}, "", nextUrl);
-    setRoute(nextRoute);
+    rrNavigate(`${nextRoute.pathname}${nextRoute.search}`, { replace: !!options.replace });
   };
 
   const toggleTheme = () => {
@@ -1143,19 +1130,7 @@ function App() {
     );
   }
 
-  return (
-    <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: "#2f6fed",
-          borderRadius: 12,
-          fontFamily: "Nunito, Anuphan, sans-serif"
-        }
-      }}
-    >
-      {currentPage}
-    </ConfigProvider>
-  );
+  return currentPage;
 }
 
 export default App;

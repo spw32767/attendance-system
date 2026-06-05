@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { Send } from "lucide-react";
+import { Button, EmptyState, Spinner } from "../components/ui";
 
 const EMPTY_MESSAGES = {
   not_found: {
@@ -133,8 +135,9 @@ function PublicFormPage({
 
   if (loading) {
     return (
-      <div className="public-form-shell page-enter">
-        <section className="public-form-card">
+      <div className="public-form-shell">
+        <section className="public-form-card public-form-card-status">
+          <Spinner size={28} label="กำลังโหลดแบบฟอร์ม" />
           <p>กำลังโหลดแบบฟอร์ม...</p>
         </section>
       </div>
@@ -144,21 +147,24 @@ function PublicFormPage({
   if (formStatus !== "open" || !formData) {
     const message = EMPTY_MESSAGES[formStatus] || EMPTY_MESSAGES.closed;
     return (
-      <div className="public-form-shell page-enter">
-        <section className="public-form-card">
-          <p className="public-form-chip">Public Form</p>
-          <h1>{message.title}</h1>
-          <p>{message.description}</p>
-          <button className="ghost-button" type="button" onClick={onGoLogin}>
-            กลับหน้าเข้าสู่ระบบ
-          </button>
+      <div className="public-form-shell">
+        <section className="public-form-card public-form-card-status">
+          <EmptyState
+            title={message.title}
+            description={message.description}
+            action={
+              <Button variant="ghost" onClick={onGoLogin}>
+                <span>กลับหน้าเข้าสู่ระบบ</span>
+              </Button>
+            }
+          />
         </section>
       </div>
     );
   }
 
   return (
-    <div className={`public-form-shell page-enter${isSubmitting ? " is-submitting" : ""}`}>
+    <div className={`public-form-shell${isSubmitting ? " is-submitting" : ""}`}>
       <section className="google-preview-surface">
         <article className="google-preview-form-card">
           <div className="google-preview-form-accent" />
@@ -328,9 +334,10 @@ function PublicFormPage({
           ))}
 
           <div className="public-form-submit-row">
-            <button className="primary-button" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "กำลังส่งข้อมูล..." : "ส่งข้อมูล"}
-            </button>
+            <Button variant="primary" type="submit" loading={isSubmitting}>
+              <Send size={14} aria-hidden="true" />
+              <span>{isSubmitting ? "กำลังส่งข้อมูล..." : "ส่งข้อมูล"}</span>
+            </Button>
           </div>
         </form>
       </section>

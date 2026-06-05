@@ -161,26 +161,23 @@ function AdminLayout({
               </nav>
             </div>
             <div className="admin-topbar-actions">
-              {/* Theme toggle switch */}
               <button
-                className={`theme-toggle-switch${theme === "dark" ? " theme-toggle-switch-active" : ""}`}
+                className="icon-only-button icon-neutral-button"
                 type="button"
                 onClick={onToggleTheme}
                 aria-pressed={theme === "dark"}
                 title={theme === "dark" ? "เปลี่ยนเป็นธีมสว่าง" : "เปลี่ยนเป็นธีมมืด"}
+                aria-label={theme === "dark" ? "เปลี่ยนเป็นธีมสว่าง" : "เปลี่ยนเป็นธีมมืด"}
               >
-                <span className="theme-toggle-switch-icon theme-toggle-switch-icon-sun" aria-hidden="true">
-                  <Sun size={12} strokeWidth={2} />
-                </span>
-                <span className="theme-toggle-switch-icon theme-toggle-switch-icon-moon" aria-hidden="true">
-                  <Moon size={12} strokeWidth={2} />
-                </span>
-                <span className="theme-toggle-switch-thumb" aria-hidden="true" />
+                {theme === "dark" ? (
+                  <Sun size={17} strokeWidth={2} />
+                ) : (
+                  <Moon size={17} strokeWidth={2} />
+                )}
               </button>
 
-              {/* Logout icon button */}
               <button
-                className="icon-only-button icon-neutral-button topbar-logout-button"
+                className="icon-only-button icon-neutral-button"
                 type="button"
                 onClick={onLogout}
                 title="ออกจากระบบ"
