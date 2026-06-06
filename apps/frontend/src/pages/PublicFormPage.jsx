@@ -106,6 +106,8 @@ function PublicFormPage({
     return Object.keys(nextErrors).length === 0;
   };
 
+  const [submitError, setSubmitError] = useState("");
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -118,15 +120,35 @@ function PublicFormPage({
     }
 
     setIsSubmitting(true);
+    setSubmitError("");
     try {
       const result = await onSubmitPublicForm(publicPath, { answers });
       if (!result.ok) {
+        // 200 responses with ok:false: closed / not_started / ended /
+        // not_found. Flip to the empty-state screen.
         setFormStatus(result.status || "closed");
         return;
       }
 
       if (onNavigateSuccess) {
         onNavigateSuccess(result);
+      }
+    } catch (err) {
+      // 4xx (validation_error / duplicate_value / already_submitted) lands
+      // here because apiAdminService throws on !response.ok. Pin the message
+      // to the offending field if the backend told us which one; otherwise
+      // surface it as a banner above the submit button.
+      const data = err?.data || null;
+      const message = err?.message || "ส่งแบบฟอร์มไม่สำเร็จ";
+      if (data?.fieldId) {
+        setErrors({ [data.fieldId]: message });
+        setSubmitError("");
+        const node = document.querySelector(`[data-field-id="${data.fieldId}"]`);
+        if (node) {
+          node.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      } else {
+        setSubmitError(message);
       }
     } finally {
       setIsSubmitting(false);
@@ -176,7 +198,11 @@ function PublicFormPage({
 
         <form className="public-live-google-form" onSubmit={handleSubmit}>
           {orderedFields.map((field) => (
-            <article key={field.id} className="google-preview-question-card">
+            <article
+              key={field.id}
+              className="google-preview-question-card"
+              data-field-id={field.id}
+            >
               <p className="google-preview-question-title">
                 {field.field_label || "คำถาม"}
                 {field.is_required ? <strong className="required-mark">*</strong> : null}
@@ -332,6 +358,12 @@ function PublicFormPage({
               {errors[field.id] ? <small className="public-form-error">{errors[field.id]}</small> : null}
             </article>
           ))}
+
+          {submitError ? (
+            <p className="public-form-submit-error" role="alert">
+              {submitError}
+            </p>
+          ) : null}
 
           <div className="public-form-submit-row">
             <Button variant="primary" type="submit" loading={isSubmitting}>

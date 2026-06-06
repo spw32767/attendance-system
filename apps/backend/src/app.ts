@@ -4,7 +4,6 @@ import fastifyCors from "@fastify/cors";
 import fastifyRateLimit from "@fastify/rate-limit";
 import { pool } from "./db/mysql";
 import adminRoutes from "./modules/admin/admin.routes";
-import attendanceRoutes from "./modules/attendance/attendance.routes";
 import authRoutes from "./modules/auth/auth.routes";
 import { authPreHandler } from "./modules/auth/auth.middleware";
 import healthRoutes from "./modules/health/health.routes";
@@ -76,7 +75,6 @@ export function buildApp(): FastifyInstance {
 
   app.register(healthRoutes);
   app.register(authRoutes, { prefix: "/api" });
-  app.register(attendanceRoutes, { prefix: "/api" });
   app.register(adminRoutes, { prefix: "/api" });
 
   app.addHook("onClose", async () => {

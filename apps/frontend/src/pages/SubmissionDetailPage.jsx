@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { Download } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
+import { adminDataAdapter } from "../services/adminDataAdapter";
 
 const FIELD_TYPE_LABELS = {
   short_text: "คำตอบสั้น",
@@ -200,7 +202,31 @@ function SubmissionDetailPage({
                   <td>{answer.field_label}</td>
                   <td>{FIELD_TYPE_LABELS[answer.field_type] || answer.field_type}</td>
                   <td>{answer.is_required ? "ใช่" : "ไม่"}</td>
-                  <td>{answer.value}</td>
+                  <td>
+                    {answer.field_type === "file_upload" && (answer.files || []).length > 0 ? (
+                      <ul className="submission-file-list">
+                        {(answer.files || []).map((file) => (
+                          <li key={file.file_id}>
+                            <button
+                              type="button"
+                              className="text-button submission-file-link"
+                              onClick={() =>
+                                adminDataAdapter.downloadSubmissionFile(
+                                  submission.submission_id,
+                                  file.file_id
+                                )
+                              }
+                            >
+                              <Download size={13} aria-hidden="true" />
+                              <span>{file.original_file_name}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      answer.value
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

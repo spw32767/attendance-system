@@ -23,6 +23,7 @@ export const adminDataAdapter = {
 
   getPublicForm: (...args) => provider.getPublicForm(...args),
   submitPublicForm: (...args) => provider.submitPublicForm(...args),
+  downloadSubmissionFile: (...args) => provider.downloadSubmissionFile(...args),
 
   listItems: (...args) => provider.listItems(...args),
   listClaims: (...args) => provider.listClaims(...args),

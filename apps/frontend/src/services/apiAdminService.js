@@ -55,6 +55,9 @@ const parseError = (data, status) => {
   const message = data?.error || data?.message || `Request failed: ${status}`;
   const err = new Error(message);
   err.status = status;
+  // Expose full body to callers that need extra fields (e.g. fieldId,
+  // status='validation_error' / 'duplicate_value' / 'already_submitted').
+  err.data = data || null;
   return err;
 };
 
@@ -235,11 +238,49 @@ export const apiAdminService = {
 
   getPublicForm: (publicPath) => request(`/public/forms/${encodeURIComponent(publicPath)}`),
 
-  submitPublicForm: (publicPath, payload) =>
-    request(`/public/forms/${encodeURIComponent(publicPath)}/submissions`, {
-      method: "POST",
-      body: normalizePublicPayload(payload)
-    }),
+  submitPublicForm: (publicPath, payload) => {
+    // If any answer carries actual File objects (file_upload field), we
+    // must use multipart. Otherwise the JSON path is cheaper.
+    const answers = payload?.answers || {};
+    const fileEntries = Object.entries(answers).filter(
+      ([, value]) =>
+        value instanceof FileList ||
+        (Array.isArray(value) && value.some((item) => item instanceof File))
+    );
+
+    if (fileEntries.length === 0) {
+      return request(`/public/forms/${encodeURIComponent(publicPath)}/submissions`, {
+        method: "POST",
+        body: normalizePublicPayload(payload)
+      });
+    }
+
+    // Strip files from the JSON answers payload; send the rest as a JSON
+    // "answers" multipart field, attach files as "file_<fieldId>".
+    const textAnswers = { ...answers };
+    const formData = new FormData();
+    for (const [fieldId, value] of fileEntries) {
+      delete textAnswers[fieldId];
+      const list =
+        value instanceof FileList
+          ? Array.from(value)
+          : value.filter((v) => v instanceof File);
+      for (const file of list) {
+        formData.append(`file_${fieldId}`, file, file.name);
+      }
+    }
+    formData.append(
+      "answers",
+      JSON.stringify({ ...payload, answers: textAnswers })
+    );
+    return requestFormData(
+      `/public/forms/${encodeURIComponent(publicPath)}/submissions`,
+      formData
+    );
+  },
+
+  downloadSubmissionFile: (submissionId, fileId) =>
+    downloadFile(`/admin/submissions/${submissionId}/files/${fileId}`),
 
   listItems: () => readCollection("/admin/items"),
   listClaims: () => readCollection("/admin/claims"),

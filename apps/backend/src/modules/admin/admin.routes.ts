@@ -6,11 +6,13 @@ import {
   setUserPassword,
   verifyUserPassword
 } from "../auth/auth.data";
+import { readStoredFile, StagedFile } from "../../lib/uploads";
 import {
   buildImportTemplateExcel,
   exportFormSubmissionsExcel,
   getFormDraft,
   getSubmissionDetail,
+  getSubmissionFile,
   importFormSubmissionsFromExcel,
   previewImportFormSubmissionsFromExcel,
   listAdminLoginLogs,
@@ -43,7 +45,14 @@ const toNumber = (value: unknown) => {
 };
 
 const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
-  await fastify.register(fastifyMultipart);
+  await fastify.register(fastifyMultipart, {
+    limits: {
+      // Wire-level cap. Per-field caps (max_file_size_mb in form_fields
+      // settings_json) are enforced by validateAndFormatFileError after parse.
+      fileSize: 25 * 1024 * 1024,
+      files: 20
+    }
+  });
 
   fastify.get("/admin/projects", async () => ({ data: await listProjects() }));
 
@@ -235,21 +244,86 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
 
   fastify.post("/public/forms/:publicPath/submissions", async (request, reply) => {
     const { publicPath } = request.params as Record<string, string>;
-    const body = (request.body || {}) as Record<string, any>;
+    const contentType = String(request.headers["content-type"] || "");
+
+    let body: Record<string, any> = {};
+
+    if (contentType.startsWith("multipart/")) {
+      // Multipart submission: text answers travel as a single "answers" field
+      // containing JSON (the same payload shape as the JSON endpoint), files
+      // as "file_<fieldId>" parts (one part per file; field can repeat).
+      const parts = request.parts();
+      const filesByField: Record<string, StagedFile[]> = {};
+      let answersPayload: Record<string, any> = {};
+
+      for await (const part of parts) {
+        if (part.type === "file") {
+          const match = /^file_(.+)$/.exec(part.fieldname);
+          if (!match) {
+            // Unknown file field — drain & ignore.
+            await part.toBuffer();
+            continue;
+          }
+          const fieldId = match[1];
+          const buffer = await part.toBuffer();
+          const staged: StagedFile = {
+            originalName: part.filename || "file",
+            buffer,
+            mimetype: part.mimetype || "application/octet-stream",
+            size: buffer.length
+          };
+          (filesByField[fieldId] = filesByField[fieldId] || []).push(staged);
+        } else if (part.fieldname === "answers") {
+          try {
+            answersPayload = JSON.parse(String((part as any).value || "{}"));
+          } catch {
+            return reply.code(400).send({ ok: false, error: "answers payload is not valid JSON" });
+          }
+        }
+      }
+
+      body = { ...answersPayload, files: filesByField };
+    } else {
+      body = (request.body || {}) as Record<string, any>;
+    }
+
     const result = (await submitPublicForm(publicPath, body)) as Record<string, any>;
 
-    // Map validation outcomes (required / unique / multi-submission) to 400.
+    // Map validation outcomes (required / unique / multi-submission / file) to 400.
     // Closed / not_started / ended / not_found stay as 200 with status so
     // the public form UI can render the right "not open" message.
     if (
       result?.ok === false &&
       (result.status === "validation_error" ||
         result.status === "duplicate_value" ||
-        result.status === "already_submitted")
+        result.status === "already_submitted" ||
+        result.status === "file_invalid")
     ) {
       return reply.code(400).send(result);
     }
     return result;
+  });
+
+  fastify.get("/admin/submissions/:submissionId/files/:fileId", async (request, reply) => {
+    const submissionId = toNumber((request.params as Record<string, string>).submissionId);
+    const fileId = toNumber((request.params as Record<string, string>).fileId);
+    if (!submissionId || !fileId) {
+      return reply.code(400).send({ error: "missing id" });
+    }
+    const fileRow = await getSubmissionFile(Number(submissionId), Number(fileId));
+    if (!fileRow) {
+      return reply.code(404).send({ error: "file not found" });
+    }
+    const buffer = await readStoredFile(fileRow.storage_path);
+    if (!buffer) {
+      return reply.code(410).send({ error: "file no longer on disk" });
+    }
+    reply.header(
+      "Content-Disposition",
+      `attachment; filename*=UTF-8''${encodeURIComponent(fileRow.original_file_name)}`
+    );
+    reply.type("application/octet-stream");
+    return reply.send(buffer);
   });
 
   fastify.get("/admin/items", async () => ({ data: await listItems() }));

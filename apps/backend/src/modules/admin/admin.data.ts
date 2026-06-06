@@ -2,6 +2,11 @@ import { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import * as XLSX from "xlsx";
 import { pool } from "../../db/mysql";
 import { newShareKey } from "../../lib/tokens";
+import {
+  StagedFile,
+  validateAndFormatFileError,
+  writeFilesForSubmission
+} from "../../lib/uploads";
 import { sendEmailWithQr } from "./email.service";
 
 type AnyRow = RowDataPacket & { [key: string]: any };
@@ -570,8 +575,10 @@ const getAnswerFileRows = async (answerIds: number[], connection?: PoolConnectio
   return queryRows<AnyRow>(
     `
       SELECT
+        answer_file_id,
         answer_id,
-        original_file_name
+        original_file_name,
+        file_extension
       FROM entry_submission_files
       WHERE answer_id IN (${placeholders})
         AND deleted_at IS NULL
@@ -580,6 +587,45 @@ const getAnswerFileRows = async (answerIds: number[], connection?: PoolConnectio
     answerIds,
     connection
   );
+};
+
+/**
+ * Fetch a single uploaded file row, scoped to the owning submission so an
+ * admin can't trivially enumerate file_ids across forms.
+ */
+export const getSubmissionFile = async (
+  submissionId: number,
+  fileId: number
+): Promise<{
+  file_id: number;
+  original_file_name: string;
+  storage_path: string;
+} | null> => {
+  const rows = await queryRows<AnyRow>(
+    `
+      SELECT
+        sf.answer_file_id AS file_id,
+        sf.original_file_name,
+        sf.storage_path
+      FROM entry_submission_files sf
+      INNER JOIN entry_submission_answers a ON a.answer_id = sf.answer_id
+      WHERE sf.answer_file_id = ?
+        AND a.submission_id = ?
+        AND sf.deleted_at IS NULL
+        AND a.deleted_at IS NULL
+      LIMIT 1
+    `,
+    [fileId, submissionId]
+  );
+  const row = rows[0];
+  if (!row) {
+    return null;
+  }
+  return {
+    file_id: Number(row.file_id),
+    original_file_name: String(row.original_file_name || "file"),
+    storage_path: String(row.storage_path || "")
+  };
 };
 
 const mapAnswerValue = (
@@ -1254,6 +1300,20 @@ export const getSubmissionDetail = async (submissionId: number) => {
     return lookup;
   }, {});
 
+  const fileEntriesByAnswerId = fileRows.reduce<
+    Record<number, Array<{ file_id: number; original_file_name: string }>>
+  >((lookup, fileRow) => {
+    const answerId = Number(fileRow.answer_id);
+    if (!lookup[answerId]) {
+      lookup[answerId] = [];
+    }
+    lookup[answerId].push({
+      file_id: Number(fileRow.answer_file_id),
+      original_file_name: String(fileRow.original_file_name || "file")
+    });
+    return lookup;
+  }, {});
+
   const identity = toRespondentIdentity(answerRows);
 
   return {
@@ -1280,7 +1340,8 @@ export const getSubmissionDetail = async (submissionId: number) => {
         answerRow,
         checkboxValuesByAnswerId[Number(answerRow.answer_id)] || [],
         filesByAnswerId[Number(answerRow.answer_id)] || []
-      )
+      ),
+      files: fileEntriesByAnswerId[Number(answerRow.answer_id)] || []
     }))
   };
 };
@@ -1673,7 +1734,38 @@ const submitFormForRow = async (
     const lastNameValue = answers[fieldByUsage.last_name?.id];
     const emailValue = answers[fieldByUsage.email?.id];
 
-    // ---- 3) allow_multiple_submissions check (keyed on respondent email) ----
+    // ---- 3) file_upload validation (count / size / extension per field) ----
+    const incomingFiles = (payload.files || {}) as Record<string, StagedFile[]>;
+    if (enforceValidation) {
+      for (const field of fields) {
+        if (field.field_type !== "file_upload") {
+          continue;
+        }
+        const staged = incomingFiles[String(field.id)] || [];
+        if (field.is_required && staged.length === 0) {
+          return {
+            ok: false,
+            status: "validation_error",
+            error: `กรุณาแนบไฟล์ "${field.field_label || field.field_code || "ไฟล์"}"`,
+            fieldId: String(field.id)
+          };
+        }
+        if (staged.length === 0) {
+          continue;
+        }
+        const msg = validateAndFormatFileError(staged, field.settings_json || {});
+        if (msg) {
+          return {
+            ok: false,
+            status: "file_invalid",
+            error: msg,
+            fieldId: String(field.id)
+          };
+        }
+      }
+    }
+
+    // ---- 4) allow_multiple_submissions check (keyed on respondent email) ----
     if (
       enforceValidation &&
       !formRow.allow_multiple_submissions &&
@@ -1804,31 +1896,37 @@ const submitFormForRow = async (
       }
 
       if (field.field_type === "file_upload") {
-        let fileIndex = 0;
-        for (const fileName of resolvedValue as string[]) {
-          fileIndex += 1;
-          await execute(
-            `
-              INSERT INTO entry_submission_files (
-                answer_id,
-                original_file_name,
-                stored_file_name,
-                storage_disk,
-                storage_path,
-                file_extension,
-                uploaded_at
-              ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            `,
-            [
-              answerId,
-              fileName,
-              `${Date.now()}_${fileIndex}_${fileName}`,
-              "local",
-              `uploads/forms/${formSummary.public_path}/${submissionCode}/${fileName}`,
-              fileName.includes(".") ? fileName.split(".").pop() : null
-            ],
-            connection
+        const staged = (incomingFiles[String(field.id)] || []) as StagedFile[];
+        if (staged.length > 0) {
+          const storedFiles = await writeFilesForSubmission(
+            formSummary.public_path,
+            submissionCode,
+            staged
           );
+          for (const stored of storedFiles) {
+            await execute(
+              `
+                INSERT INTO entry_submission_files (
+                  answer_id,
+                  original_file_name,
+                  stored_file_name,
+                  storage_disk,
+                  storage_path,
+                  file_extension,
+                  uploaded_at
+                ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+              `,
+              [
+                answerId,
+                stored.originalName,
+                stored.storedName,
+                "local",
+                stored.storagePath,
+                stored.extension
+              ],
+              connection
+            );
+          }
         }
       }
     }
