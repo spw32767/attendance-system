@@ -38,9 +38,30 @@ const normalizePublicPayload = (payload) => ({
   )
 });
 
+// All admin requests carry the session cookie. Server-side @fastify/cookie
+// reads it; frontend never touches the token directly.
+const handleAuthFailure = (status) => {
+  if (status !== 401) {
+    return;
+  }
+  // If we're already on the login page don't bounce.
+  if (window.location.pathname === "/login") {
+    return;
+  }
+  window.location.assign("/login");
+};
+
+const parseError = (data, status) => {
+  const message = data?.error || data?.message || `Request failed: ${status}`;
+  const err = new Error(message);
+  err.status = status;
+  return err;
+};
+
 const request = async (path, options = {}) => {
   const response = await fetch(buildUrl(path, options.params), {
     method: options.method || "GET",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {})
@@ -52,7 +73,8 @@ const request = async (path, options = {}) => {
   const data = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    throw new Error(data?.message || `Request failed: ${response.status}`);
+    handleAuthFailure(response.status);
+    throw parseError(data, response.status);
   }
 
   return data;
@@ -61,6 +83,7 @@ const request = async (path, options = {}) => {
 const requestFormData = async (path, formData, options = {}) => {
   const response = await fetch(buildUrl(path, options.params), {
     method: options.method || "POST",
+    credentials: "include",
     headers: {
       ...(options.headers || {})
     },
@@ -71,7 +94,8 @@ const requestFormData = async (path, formData, options = {}) => {
   const data = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    throw new Error(data?.message || `Request failed: ${response.status}`);
+    handleAuthFailure(response.status);
+    throw parseError(data, response.status);
   }
 
   return data;
@@ -98,15 +122,18 @@ const parseFileNameFromDisposition = (value) => {
 };
 
 const downloadFile = async (path, params) => {
-  const response = await fetch(buildUrl(path, params));
+  const response = await fetch(buildUrl(path, params), {
+    credentials: "include"
+  });
 
   if (!response.ok) {
+    handleAuthFailure(response.status);
     const text = await response.text();
     let message = `Request failed: ${response.status}`;
     if (text) {
       try {
         const data = JSON.parse(text);
-        message = data?.message || message;
+        message = data?.error || data?.message || message;
       } catch {
         message = text;
       }
@@ -248,5 +275,16 @@ export const apiAdminService = {
     }),
 
   listSsoAccounts: () => readCollection("/admin/sso-accounts"),
-  listAdminLoginLogs: () => readCollection("/admin/login-logs")
+  listAdminLoginLogs: () => readCollection("/admin/login-logs"),
+
+  // ---- auth ----
+  login: (email, password) =>
+    request("/auth/login", {
+      method: "POST",
+      body: { email, password }
+    }),
+
+  logout: () => request("/auth/logout", { method: "POST" }),
+
+  me: () => request("/auth/me")
 };

@@ -36,5 +36,9 @@ export const adminDataAdapter = {
   listUsers: (...args) => provider.listUsers(...args),
   updateUser: (...args) => provider.updateUser(...args),
   listSsoAccounts: (...args) => provider.listSsoAccounts(...args),
-  listAdminLoginLogs: (...args) => provider.listAdminLoginLogs(...args)
+  listAdminLoginLogs: (...args) => provider.listAdminLoginLogs(...args),
+
+  login: (...args) => provider.login(...args),
+  logout: (...args) => provider.logout(...args),
+  me: (...args) => provider.me(...args)
 };

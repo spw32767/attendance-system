@@ -1,6 +1,7 @@
 import { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import * as XLSX from "xlsx";
 import { pool } from "../../db/mysql";
+import { newShareKey } from "../../lib/tokens";
 import { sendEmailWithQr } from "./email.service";
 
 type AnyRow = RowDataPacket & { [key: string]: any };
@@ -147,7 +148,8 @@ const toNullableDateTime = (value: unknown): string | null => {
 
 const toBoolean = (value: unknown): boolean => Boolean(Number(value));
 
-const toShareKey = () => Math.random().toString(36).slice(2, 14);
+// Cryptographically random share key — formerly Math.random based.
+const toShareKey = () => newShareKey();
 
 const toFormCode = (formName: unknown, fallbackId: number) => {
   const normalized = String(formName || "FORM")

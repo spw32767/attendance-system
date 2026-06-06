@@ -52,24 +52,25 @@ const PATH_SCANNER_CLAIMS = "/scanner/claims";
 const THEME_STORAGE_KEY = "attendance-theme";
 const ROLE_STORAGE_KEY = "attendance-role";
 
+// super_admin is a strict superset — has access to every route.
 const ROUTE_PERMISSION_GROUP = {
-  login: ["admin", "staff", "scanner"],
-  dashboard: ["admin", "staff"],
-  projects: ["admin", "staff"],
-  "project-create": ["admin", "staff"],
-  "project-edit": ["admin", "staff"],
-  "project-forms": ["admin", "staff"],
-  "form-editor": ["admin", "staff"],
-  submissions: ["admin", "staff"],
-  "submission-detail": ["admin", "staff"],
-  items: ["admin", "staff"],
-  claims: ["admin", "staff", "scanner"],
-  email: ["admin", "staff"],
-  users: ["admin"],
-  "login-logs": ["admin"],
-  "scanner-claims": ["admin", "staff", "scanner"],
-  "public-form": ["admin", "staff", "scanner"],
-  "public-form-success": ["admin", "staff", "scanner"]
+  login: ["super_admin", "admin", "staff", "scanner"],
+  dashboard: ["super_admin", "admin", "staff"],
+  projects: ["super_admin", "admin", "staff"],
+  "project-create": ["super_admin", "admin", "staff"],
+  "project-edit": ["super_admin", "admin", "staff"],
+  "project-forms": ["super_admin", "admin", "staff"],
+  "form-editor": ["super_admin", "admin", "staff"],
+  submissions: ["super_admin", "admin", "staff"],
+  "submission-detail": ["super_admin", "admin", "staff"],
+  items: ["super_admin", "admin", "staff"],
+  claims: ["super_admin", "admin", "staff", "scanner"],
+  email: ["super_admin", "admin", "staff"],
+  users: ["super_admin", "admin"],
+  "login-logs": ["super_admin", "admin"],
+  "scanner-claims": ["super_admin", "admin", "staff", "scanner"],
+  "public-form": ["super_admin", "admin", "staff", "scanner"],
+  "public-form-success": ["super_admin", "admin", "staff", "scanner"]
 };
 
 const STATIC_ROUTES = {
@@ -222,10 +223,42 @@ function App() {
   const [scanResult, setScanResult] = useState(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [bootstrapError, setBootstrapError] = useState("");
+  const [sessionUser, setSessionUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [currentRole, setCurrentRole] = useState(() => {
     const saved = window.localStorage.getItem(ROLE_STORAGE_KEY);
     return saved || "admin";
   });
+
+  // Session probe — runs once on mount. /auth/me sets sessionUser if the
+  // cookie is valid; otherwise apiAdminService.handleAuthFailure already
+  // redirected to /login (skipped when already on /login or /forms/*).
+  useEffect(() => {
+    let cancelled = false;
+    const probe = async () => {
+      try {
+        const result = await adminDataAdapter.me();
+        if (!cancelled) {
+          setSessionUser(result?.user || null);
+          if (result?.user?.role_code) {
+            setCurrentRole(result.user.role_code);
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setSessionUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setAuthChecked(true);
+        }
+      }
+    };
+    void probe();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const expectedUrl = `${route.pathname}${route.search}`;
@@ -245,6 +278,12 @@ function App() {
   }, [currentRole]);
 
   useEffect(() => {
+    // Only fetch admin data once we know the session is valid; avoids a
+    // burst of 401s on unauthenticated load.
+    if (!sessionUser) {
+      setIsBootstrapping(false);
+      return;
+    }
     const bootstrap = async () => {
       setIsBootstrapping(true);
       setBootstrapError("");
@@ -290,7 +329,7 @@ function App() {
     };
 
     void bootstrap();
-  }, []);
+  }, [sessionUser]);
 
   const projectsWithLabel = useMemo(() => projects, [projects]);
 
@@ -315,6 +354,34 @@ function App() {
   const navigate = (target, options = {}) => {
     const nextRoute = parseRoute(target);
     rrNavigate(`${nextRoute.pathname}${nextRoute.search}`, { replace: !!options.replace });
+  };
+
+  const handleLoginSuccess = (user) => {
+    setSessionUser(user || null);
+    if (user?.role_code) {
+      setCurrentRole(user.role_code);
+    }
+    navigate(PATH_DASHBOARD, { replace: true });
+  };
+
+  const handleLogout = async () => {
+    try {
+      await adminDataAdapter.logout();
+    } catch (err) {
+      // Even if the server logout fails (network), drop local state.
+    }
+    setSessionUser(null);
+    setProjects([]);
+    setForms([]);
+    setSubmissions([]);
+    setItems([]);
+    setClaims([]);
+    setEmailTemplates([]);
+    setEmailLogs([]);
+    setUsers([]);
+    setSsoAccounts([]);
+    setAdminLoginLogs([]);
+    navigate(PATH_LOGIN, { replace: true });
   };
 
   const toggleTheme = () => {
@@ -664,7 +731,7 @@ function App() {
   if (route.id === ROUTE_ID_LOGIN) {
     currentPage = (
       <LoginPage
-        onLogin={() => navigate(PATH_DASHBOARD)}
+        onLogin={handleLoginSuccess}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
@@ -674,7 +741,7 @@ function App() {
   if (route.id === ROUTE_ID_DASHBOARD) {
     currentPage = (
       <AdminDashboardPage
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -702,7 +769,7 @@ function App() {
         onCreateProject={handleCreateProject}
         onEditProject={(projectId) => navigate(toProjectEditPath(projectId))}
         onOpenProjectForms={(projectId) => navigate(toProjectFormsPath(projectId))}
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -720,7 +787,7 @@ function App() {
         editingProject={null}
         onSave={handleSaveProject}
         onBack={() => navigate(PATH_PROJECTS)}
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -744,7 +811,7 @@ function App() {
           description="ไม่พบข้อมูลโครงการที่ต้องการแก้ไข อาจถูกลบไปแล้วหรือมีการเปลี่ยนรหัสโครงการ"
           bullets={["กลับไปหน้ารายการโครงการแล้วเลือกใหม่อีกครั้ง"]}
           breadcrumbs={["แอดมิน", "โครงการ", "ไม่พบข้อมูล"]}
-          onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+          onLogout={handleLogout}
           theme={theme}
           onToggleTheme={toggleTheme}
           navItems={adminNavItems}
@@ -760,7 +827,7 @@ function App() {
           editingProject={editingProject}
           onSave={handleSaveProject}
           onBack={() => navigate(PATH_PROJECTS)}
-          onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+          onLogout={handleLogout}
           theme={theme}
           onToggleTheme={toggleTheme}
           navItems={adminNavItems}
@@ -786,7 +853,7 @@ function App() {
           description="ไม่พบโครงการที่ต้องการเปิดหน้าฟอร์ม กรุณากลับไปเลือกโครงการใหม่อีกครั้ง"
           bullets={["ตรวจสอบว่าโครงการยังเปิดใช้งานอยู่", "กลับไปหน้ารายการโครงการ"]}
           breadcrumbs={["แอดมิน", "โครงการ", "ไม่พบข้อมูล"]}
-          onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+          onLogout={handleLogout}
           theme={theme}
           onToggleTheme={toggleTheme}
           navItems={adminNavItems}
@@ -823,7 +890,7 @@ function App() {
             navigate(`${PATH_EMAIL}?project=${project.project_id}&form=${templateId}`)
           }
           onBackToProjects={() => navigate(PATH_PROJECTS)}
-          onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+          onLogout={handleLogout}
           theme={theme}
           onToggleTheme={toggleTheme}
           navItems={adminNavItems}
@@ -858,7 +925,7 @@ function App() {
             ? navigate(toProjectFormsPath(selectedProjectId))
             : navigate(PATH_PROJECTS)
         }
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -876,7 +943,7 @@ function App() {
         users={users}
         ssoAccounts={ssoAccounts}
         onUpdateUser={handleUpdateUser}
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -892,7 +959,7 @@ function App() {
     currentPage = (
       <LoginLogsPage
         logs={adminLoginLogs}
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -909,7 +976,7 @@ function App() {
       <ScannerClaimsPage
         scanResult={scanResult}
         onScanToken={handleScanToken}
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -949,7 +1016,7 @@ function App() {
         onPreviewImportSubmissionsExcel={handlePreviewImportSubmissionsExcel}
         onImportSubmissionsExcel={handleImportSubmissionsExcel}
         onExportSubmissionsExcel={handleExportSubmissionsExcel}
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -967,7 +1034,7 @@ function App() {
         submission={submissionDetail}
         onBack={() => navigate(PATH_SUBMISSIONS)}
         onUpdateSubmission={handleUpdateSubmission}
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -987,7 +1054,7 @@ function App() {
         projects={projectsWithLabel}
         forms={formsWithProjectName}
         onUpdateClaimStatus={handleUpdateClaimStatus}
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -1007,7 +1074,7 @@ function App() {
         projects={projectsWithLabel}
         forms={formsWithProjectName}
         onSaveTemplate={handleSaveEmailTemplate}
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -1053,7 +1120,7 @@ function App() {
   if (!currentPage) {
     currentPage = (
       <LoginPage
-        onLogin={() => navigate(PATH_DASHBOARD)}
+        onLogin={handleLoginSuccess}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
@@ -1072,7 +1139,7 @@ function App() {
         description="ระบบกำลังเตรียมข้อมูลหน้าจอ กรุณารอสักครู่"
         bullets={[]}
         breadcrumbs={["แอดมิน", "Loading"]}
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -1096,7 +1163,7 @@ function App() {
         description={`เกิดข้อผิดพลาด: ${bootstrapError}`}
         bullets={["ลองรีเฟรชหน้าอีกครั้ง", "ตรวจสอบ backend service และฐานข้อมูล"]}
         breadcrumbs={["แอดมิน", "Error"]}
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}
@@ -1118,7 +1185,7 @@ function App() {
           "สำหรับใช้งานจริง ระบบจะอ่านบทบาทจาก session/auth token"
         ]}
         breadcrumbs={["แอดมิน", "Access Control"]}
-        onLogout={() => navigate(PATH_LOGIN, { replace: true })}
+        onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
         navItems={adminNavItems}

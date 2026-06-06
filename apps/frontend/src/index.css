@@ -1885,6 +1885,15 @@ button:disabled {
   width: 100%;
 }
 
+.login-form-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
 .login-form label,
 .builder-meta-grid label,
 .question-card label,

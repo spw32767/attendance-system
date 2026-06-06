@@ -1,14 +1,29 @@
 import { useState } from "react";
 import { LogIn, Moon, Sun } from "lucide-react";
 import { Button } from "../components/ui";
+import { apiAdminService } from "../services/apiAdminService";
 
 function LoginPage({ onLogin, theme, onToggleTheme }) {
-  const [email, setEmail] = useState("admin@attendance.com");
-  const [password, setPassword] = useState("password");
+  const [email, setEmail] = useState("admin@attendance.local");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    onLogin();
+    if (isSubmitting) {
+      return;
+    }
+    setError("");
+    setIsSubmitting(true);
+    try {
+      const result = await apiAdminService.login(email.trim(), password);
+      onLogin(result?.user || null);
+    } catch (err) {
+      setError(err?.message || "เข้าสู่ระบบไม่สำเร็จ");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -40,6 +55,7 @@ function LoginPage({ onLogin, theme, onToggleTheme }) {
               onChange={(event) => setEmail(event.target.value)}
               autoComplete="email"
               required
+              disabled={isSubmitting}
             />
           </label>
 
@@ -52,15 +68,29 @@ function LoginPage({ onLogin, theme, onToggleTheme }) {
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"
               required
+              disabled={isSubmitting}
             />
           </label>
 
-          <Button type="submit" variant="primary" className="login-form-submit">
+          {error ? <p className="login-form-error">{error}</p> : null}
+
+          <Button
+            type="submit"
+            variant="primary"
+            className="login-form-submit"
+            loading={isSubmitting}
+            disabled={isSubmitting}
+          >
             <LogIn size={14} aria-hidden="true" />
-            <span>เข้าสู่ระบบ</span>
+            <span>{isSubmitting ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}</span>
           </Button>
 
-          <Button type="button" variant="ghost" disabled className="login-form-submit">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled
+            className="login-form-submit"
+          >
             <span>เข้าสู่ระบบด้วย SSO (เร็วๆ นี้)</span>
           </Button>
         </form>
