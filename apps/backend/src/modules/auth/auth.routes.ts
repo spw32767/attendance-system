@@ -22,7 +22,18 @@ const COOKIE_OPTS = {
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   const isProd = process.env.NODE_ENV === "production";
 
-  fastify.post("/auth/login", async (request, reply) => {
+  fastify.post("/auth/login", {
+    // Per-IP rate limit: 5 attempts / minute. The plugin returns 429 with
+    // the Thai message from app.ts errorResponseBuilder. Hits cooldown for
+    // every attempt — successful or failed — to keep credential-stuffing
+    // costly.
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: "1 minute"
+      }
+    }
+  }, async (request, reply) => {
     const body = (request.body || {}) as { email?: string; password?: string };
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "");
