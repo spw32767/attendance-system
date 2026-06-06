@@ -233,10 +233,23 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
     return getPublicForm(publicPath);
   });
 
-  fastify.post("/public/forms/:publicPath/submissions", async (request) => {
+  fastify.post("/public/forms/:publicPath/submissions", async (request, reply) => {
     const { publicPath } = request.params as Record<string, string>;
     const body = (request.body || {}) as Record<string, any>;
-    return submitPublicForm(publicPath, body);
+    const result = (await submitPublicForm(publicPath, body)) as Record<string, any>;
+
+    // Map validation outcomes (required / unique / multi-submission) to 400.
+    // Closed / not_started / ended / not_found stay as 200 with status so
+    // the public form UI can render the right "not open" message.
+    if (
+      result?.ok === false &&
+      (result.status === "validation_error" ||
+        result.status === "duplicate_value" ||
+        result.status === "already_submitted")
+    ) {
+      return reply.code(400).send(result);
+    }
+    return result;
   });
 
   fastify.get("/admin/items", async () => ({ data: await listItems() }));

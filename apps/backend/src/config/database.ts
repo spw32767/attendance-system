@@ -15,5 +15,10 @@ export const databaseConfig = {
   keepAliveInitialDelay: 30 * 1000,
   connectTimeout: 20 * 1000,
   waitForConnections: true,
-  queueLimit: 0
+  queueLimit: 0,
+  // Return DATE / DATETIME / TIMESTAMP / TIME as raw strings instead of JS
+  // Date objects. Avoids a class of timezone bugs where a local date stored
+  // by the user (e.g. birth_date 1999-12-31) is read back as 1999-12-30 in
+  // a UTC-offset machine. Existing toDateTime() handles string inputs.
+  dateStrings: true
 };

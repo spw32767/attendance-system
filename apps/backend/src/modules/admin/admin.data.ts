@@ -1506,6 +1506,29 @@ type SubmitFormOptions = {
   markPresent?: boolean;
   enforceFormOpen?: boolean;
   queueSubmissionEmail?: boolean;
+  /**
+   * Bypass required / unique / multi-submission checks. The Excel-import
+   * pipeline runs its own preview-level validation against the source
+   * sheet and shouldn't double-fail rows here.
+   */
+  skipValidation?: boolean;
+};
+
+/**
+ * Did the user actually answer this field? Empty string, null, undefined,
+ * and empty arrays all count as "no answer" for required-field enforcement.
+ */
+const isAnswerEmpty = (fieldType: string, rawValue: unknown): boolean => {
+  if (rawValue === undefined || rawValue === null) {
+    return true;
+  }
+  if (fieldType === "checkboxes" || fieldType === "file_upload") {
+    return !Array.isArray(rawValue) || rawValue.length === 0;
+  }
+  if (typeof rawValue === "string") {
+    return rawValue.trim() === "";
+  }
+  return false;
 };
 
 const resolveAnswerValue = (
@@ -1564,6 +1587,72 @@ const submitFormForRow = async (
     }, {});
 
     const answers = payload.answers || {};
+    const enforceValidation = options.skipValidation !== true;
+
+    // ---- 1) Required-field check ----
+    if (enforceValidation) {
+      for (const field of fields) {
+        if (!field.is_required) {
+          continue;
+        }
+        if (isAnswerEmpty(field.field_type, answers[field.id])) {
+          return {
+            ok: false,
+            status: "validation_error",
+            error: `กรุณากรอก "${field.field_label || field.field_code || "ข้อมูล"}"`,
+            fieldId: String(field.id)
+          };
+        }
+      }
+    }
+
+    // ---- 2) Unique-value check (per-field is_unique_value flag) ----
+    if (enforceValidation) {
+      for (const field of fields) {
+        if (!field.is_unique_value) {
+          continue;
+        }
+        const candidate = answers[field.id];
+        if (isAnswerEmpty(field.field_type, candidate)) {
+          continue;
+        }
+        if (typeof candidate !== "string") {
+          continue; // unique only meaningful for short_text / long_text / date / time
+        }
+        const normalized = candidate.trim();
+        if (!normalized) {
+          continue;
+        }
+        const dupRows = await queryRows<AnyRow>(
+          `
+            SELECT s.submission_id
+            FROM entry_submissions s
+            INNER JOIN entry_submission_answers a ON a.submission_id = s.submission_id
+            WHERE s.form_id = ?
+              AND s.deleted_at IS NULL
+              AND a.deleted_at IS NULL
+              AND a.field_id = ?
+              AND (
+                LOWER(TRIM(a.answer_text)) = LOWER(?)
+                OR a.answer_date = ?
+                OR a.answer_time = ?
+              )
+            LIMIT 1
+          `,
+          [formRow.form_id, field.id, normalized, normalized, normalized],
+          connection
+        );
+        if (dupRows.length > 0) {
+          return {
+            ok: false,
+            status: "duplicate_value",
+            error: `ค่านี้ถูกใช้แล้วในฟอร์ม: "${field.field_label || field.field_code || "ข้อมูล"}"`,
+            fieldId: String(field.id)
+          };
+        }
+      }
+    }
+
     const { nextSubmissionId, submissionCode } = await buildSubmissionCode(
       Number(formRow.form_id),
       connection
@@ -1583,6 +1672,39 @@ const submitFormForRow = async (
     const firstNameValue = answers[fieldByUsage.first_name?.id];
     const lastNameValue = answers[fieldByUsage.last_name?.id];
     const emailValue = answers[fieldByUsage.email?.id];
+
+    // ---- 3) allow_multiple_submissions check (keyed on respondent email) ----
+    if (
+      enforceValidation &&
+      !formRow.allow_multiple_submissions &&
+      typeof emailValue === "string" &&
+      emailValue.trim() &&
+      fieldByUsage.email?.id
+    ) {
+      const normalizedEmail = emailValue.trim().toLowerCase();
+      const dupSubmission = await queryRows<AnyRow>(
+        `
+          SELECT s.submission_id
+          FROM entry_submissions s
+          INNER JOIN entry_submission_answers a ON a.submission_id = s.submission_id
+          WHERE s.form_id = ?
+            AND s.deleted_at IS NULL
+            AND a.deleted_at IS NULL
+            AND a.field_id = ?
+            AND LOWER(TRIM(a.answer_text)) = ?
+          LIMIT 1
+        `,
+        [formRow.form_id, fieldByUsage.email.id, normalizedEmail],
+        connection
+      );
+      if (dupSubmission.length > 0) {
+        return {
+          ok: false,
+          status: "already_submitted",
+          error: "อีเมลนี้ส่งแบบฟอร์มไปแล้ว ฟอร์มนี้รับได้ครั้งเดียวต่อบัญชี"
+        };
+      }
+    }
 
     if (typeof fullNameValue === "string" && fullNameValue.trim()) {
       respondentName = fullNameValue.trim();
@@ -1847,7 +1969,8 @@ export const submitPublicForm = async (publicPath: string, payload: AnyPayload) 
           end_at,
           success_title,
           success_message,
-          settings_json
+          settings_json,
+          allow_multiple_submissions
         FROM form_forms
         WHERE public_path = ?
           AND deleted_at IS NULL
@@ -2588,7 +2711,12 @@ export const importFormSubmissionsFromExcel = async (
           note: "นำเข้าจากไฟล์ Excel",
           markPresent: false,
           enforceFormOpen: false,
-          queueSubmissionEmail: false
+          queueSubmissionEmail: false,
+          // The preview step already deduped by email and surfaced row-level
+          // errors to the user. Skip per-submission validation here so
+          // legitimate import rows don't get rejected by required / unique
+          // / multi-submission checks during the bulk insert.
+          skipValidation: true
         },
         connection
       );
