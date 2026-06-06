@@ -38,6 +38,10 @@ export const adminDataAdapter = {
   listSsoAccounts: (...args) => provider.listSsoAccounts(...args),
   listAdminLoginLogs: (...args) => provider.listAdminLoginLogs(...args),
 
+  createUser: (...args) => provider.createUser(...args),
+  resetUserPassword: (...args) => provider.resetUserPassword(...args),
+  changeOwnPassword: (...args) => provider.changeOwnPassword(...args),
+
   login: (...args) => provider.login(...args),
   logout: (...args) => provider.logout(...args),
   me: (...args) => provider.me(...args)

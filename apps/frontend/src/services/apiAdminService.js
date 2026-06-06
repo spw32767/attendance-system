@@ -277,6 +277,22 @@ export const apiAdminService = {
   listSsoAccounts: () => readCollection("/admin/sso-accounts"),
   listAdminLoginLogs: () => readCollection("/admin/login-logs"),
 
+  // ---- user create + password ----
+  createUser: (payload) =>
+    request("/admin/users", { method: "POST", body: payload }),
+
+  resetUserPassword: (userId, password) =>
+    request(`/admin/users/${userId}/reset-password`, {
+      method: "POST",
+      body: { password }
+    }),
+
+  changeOwnPassword: (currentPassword, newPassword) =>
+    request("/admin/me/password", {
+      method: "POST",
+      body: { current_password: currentPassword, new_password: newPassword }
+    }),
+
   // ---- auth ----
   login: (email, password) =>
     request("/auth/login", {

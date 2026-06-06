@@ -1,8 +1,14 @@
+import bcrypt from "bcryptjs";
 import { RowDataPacket } from "mysql2/promise";
 import { pool } from "../../db/mysql";
 import { newSessionId } from "../../lib/tokens";
 
 type AnyRow = RowDataPacket & { [key: string]: any };
+
+export const BCRYPT_COST = 12;
+export const PASSWORD_MIN_LENGTH = 8;
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const VALID_ROLES = new Set(["super_admin", "admin", "staff", "scanner"]);
 
 export type AuthUser = {
   user_id: number;
@@ -104,6 +110,122 @@ export const getSessionUser = async (sessionId: string): Promise<SessionUser | n
     display_name: row.display_name,
     role_code: row.role_code
   };
+};
+
+export type CreateUserInput = {
+  email: string;
+  display_name: string;
+  role_code: string;
+  password: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  allow_local_login?: boolean;
+  allow_sso_login?: boolean;
+};
+
+export type CreateUserError =
+  | "invalid_email"
+  | "invalid_role"
+  | "weak_password"
+  | "missing_display_name"
+  | "email_taken";
+
+export const createUser = async (
+  input: CreateUserInput
+): Promise<{ ok: false; reason: CreateUserError } | { ok: true; userId: number }> => {
+  const email = (input.email || "").trim().toLowerCase();
+  const displayName = (input.display_name || "").trim();
+  const role = (input.role_code || "").trim();
+  const password = input.password || "";
+
+  if (!EMAIL_RE.test(email)) {
+    return { ok: false, reason: "invalid_email" };
+  }
+  if (!displayName) {
+    return { ok: false, reason: "missing_display_name" };
+  }
+  if (!VALID_ROLES.has(role)) {
+    return { ok: false, reason: "invalid_role" };
+  }
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    return { ok: false, reason: "weak_password" };
+  }
+
+  const [existing] = await pool.query<AnyRow[]>(
+    `SELECT user_id FROM auth_users WHERE email = ? LIMIT 1`,
+    [email]
+  );
+  if (existing.length > 0) {
+    return { ok: false, reason: "email_taken" };
+  }
+
+  const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
+  const allowLocal = input.allow_local_login !== false;
+  const allowSso = input.allow_sso_login === true;
+
+  const [result] = await pool.execute<any>(
+    `
+      INSERT INTO auth_users
+        (email, password_hash, display_name, first_name, last_name,
+         role_code, is_active, allow_local_login, allow_sso_login)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+    `,
+    [
+      email,
+      passwordHash,
+      displayName,
+      input.first_name || null,
+      input.last_name || null,
+      role,
+      allowLocal ? 1 : 0,
+      allowSso ? 1 : 0
+    ]
+  );
+
+  return { ok: true, userId: Number(result.insertId) };
+};
+
+/** Sets a user's password to a new bcrypt hash. Caller must do auth checks. */
+export const setUserPassword = async (
+  userId: number,
+  plaintext: string
+): Promise<{ ok: false; reason: "weak_password" | "not_found" } | { ok: true }> => {
+  if (!plaintext || plaintext.length < PASSWORD_MIN_LENGTH) {
+    return { ok: false, reason: "weak_password" };
+  }
+  const passwordHash = await bcrypt.hash(plaintext, BCRYPT_COST);
+  const [result] = await pool.execute<any>(
+    `UPDATE auth_users SET password_hash = ?, allow_local_login = 1 WHERE user_id = ? AND deleted_at IS NULL`,
+    [passwordHash, userId]
+  );
+  if (!result?.affectedRows) {
+    return { ok: false, reason: "not_found" };
+  }
+  return { ok: true };
+};
+
+/** True iff the plaintext matches the user's current password. */
+export const verifyUserPassword = async (
+  userId: number,
+  plaintext: string
+): Promise<boolean> => {
+  const [rows] = await pool.query<AnyRow[]>(
+    `SELECT password_hash FROM auth_users WHERE user_id = ? AND deleted_at IS NULL LIMIT 1`,
+    [userId]
+  );
+  const hash = rows[0]?.password_hash;
+  if (!hash) {
+    return false;
+  }
+  return bcrypt.compare(plaintext, hash);
+};
+
+/**
+ * Drop every active session for a user. Call after a password change so
+ * old cookies stop working.
+ */
+export const destroyAllSessionsForUser = async (userId: number): Promise<void> => {
+  await pool.execute(`DELETE FROM auth_sessions WHERE user_id = ?`, [userId]);
 };
 
 /** Best-effort record of a login attempt for audit. Never throws. */

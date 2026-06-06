@@ -30,6 +30,9 @@ const SCANNER = "scanner";
  * Mirrors the frontend ROUTE_PERMISSION_GROUP so the UI and the API agree.
  */
 const ROLE_RULES: Array<{ match: RegExp; roles: string[] }> = [
+  // Self-service (currently: change-own-password) — any authed role.
+  { match: /^\/api\/admin\/me(\/|$|\?)/, roles: [SUPER, ADMIN, STAFF, SCANNER] },
+
   // User management + audit — admin only.
   { match: /^\/api\/admin\/users(\/|$|\?)/, roles: [SUPER, ADMIN] },
   { match: /^\/api\/admin\/sso-accounts(\/|$|\?)/, roles: [SUPER, ADMIN] },

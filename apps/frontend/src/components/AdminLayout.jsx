@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   LayoutDashboard,
   Briefcase,
@@ -11,13 +11,17 @@ import {
   Users,
   Clock,
   ChevronLeft,
+  ChevronDown,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
+  KeyRound,
   Sun,
   Moon,
   Circle
 } from "lucide-react";
+import { Button, Modal } from "./ui";
+import { useSession } from "../contexts/SessionContext";
 
 const NAV_ICON_MAP = {
   dashboard: LayoutDashboard,
@@ -32,6 +36,13 @@ const NAV_ICON_MAP = {
   logs: Clock
 };
 
+const ROLE_LABEL = {
+  super_admin: "Super admin",
+  admin: "Admin",
+  staff: "Staff",
+  scanner: "Scanner"
+};
+
 function AdminLayout({
   breadcrumbs,
   onLogout,
@@ -41,14 +52,77 @@ function AdminLayout({
   navItems,
   activePath,
   onNavigate,
-  currentRole,
-  onRoleChange,
   children
 }) {
+  const { sessionUser, onChangeOwnPassword } = useSession();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     const saved = window.localStorage.getItem("attendance-sidebar-collapsed");
     return saved === "1";
   });
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
+
+  const [isChangePwOpen, setIsChangePwOpen] = useState(false);
+  const [changePwDraft, setChangePwDraft] = useState({ current: "", next: "", confirm: "" });
+  const [changePwError, setChangePwError] = useState("");
+  const [changePwBusy, setChangePwBusy] = useState(false);
+  const [changePwSuccess, setChangePwSuccess] = useState(false);
+
+  useEffect(() => {
+    if (!isUserMenuOpen) {
+      return undefined;
+    }
+    const onDocClick = (event) => {
+      if (!userMenuRef.current?.contains(event.target)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    const onEsc = (event) => {
+      if (event.key === "Escape") {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [isUserMenuOpen]);
+
+  const openChangePw = () => {
+    setChangePwDraft({ current: "", next: "", confirm: "" });
+    setChangePwError("");
+    setChangePwSuccess(false);
+    setIsChangePwOpen(true);
+    setIsUserMenuOpen(false);
+  };
+
+  const submitChangePw = async (event) => {
+    event.preventDefault();
+    if (changePwBusy) {
+      return;
+    }
+    if (changePwDraft.next.length < 8) {
+      setChangePwError("รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร");
+      return;
+    }
+    if (changePwDraft.next !== changePwDraft.confirm) {
+      setChangePwError("ยืนยันรหัสผ่านไม่ตรงกัน");
+      return;
+    }
+    setChangePwError("");
+    setChangePwBusy(true);
+    try {
+      await onChangeOwnPassword(changePwDraft.current, changePwDraft.next);
+      setChangePwSuccess(true);
+      setChangePwDraft({ current: "", next: "", confirm: "" });
+    } catch (err) {
+      setChangePwError(err?.message || "เปลี่ยนรหัสผ่านไม่สำเร็จ");
+    } finally {
+      setChangePwBusy(false);
+    }
+  };
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -176,27 +250,70 @@ function AdminLayout({
                 )}
               </button>
 
-              <button
-                className="icon-only-button icon-neutral-button"
-                type="button"
-                onClick={onLogout}
-                title="ออกจากระบบ"
-                aria-label="ออกจากระบบ"
-              >
-                <LogOut size={17} strokeWidth={2} />
-              </button>
-
-              {onRoleChange ? (
-                <select
-                  className="select-control role-select"
-                  value={currentRole || "admin"}
-                  onChange={(event) => onRoleChange(event.target.value)}
+              {sessionUser ? (
+                <div className="user-menu" ref={userMenuRef}>
+                  <button
+                    type="button"
+                    className="user-menu-trigger"
+                    aria-haspopup="menu"
+                    aria-expanded={isUserMenuOpen}
+                    onClick={() => setIsUserMenuOpen((open) => !open)}
+                  >
+                    <span className="user-menu-avatar" aria-hidden="true">
+                      {(sessionUser.display_name || sessionUser.email || "?")
+                        .trim()
+                        .charAt(0)
+                        .toUpperCase()}
+                    </span>
+                    <span className="user-menu-text">
+                      <span className="user-menu-name">{sessionUser.display_name}</span>
+                      <span className="user-menu-role">
+                        {ROLE_LABEL[sessionUser.role_code] || sessionUser.role_code}
+                      </span>
+                    </span>
+                    <ChevronDown size={14} aria-hidden="true" />
+                  </button>
+                  {isUserMenuOpen ? (
+                    <div className="user-menu-popover" role="menu">
+                      <div className="user-menu-header">
+                        <p className="user-menu-name">{sessionUser.display_name}</p>
+                        <p className="user-menu-email">{sessionUser.email}</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="user-menu-item"
+                        onClick={openChangePw}
+                      >
+                        <KeyRound size={14} aria-hidden="true" />
+                        <span>เปลี่ยนรหัสผ่าน</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="user-menu-item user-menu-item-danger"
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          onLogout?.();
+                        }}
+                      >
+                        <LogOut size={14} aria-hidden="true" />
+                        <span>ออกจากระบบ</span>
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <button
+                  className="icon-only-button icon-neutral-button"
+                  type="button"
+                  onClick={onLogout}
+                  title="ออกจากระบบ"
+                  aria-label="ออกจากระบบ"
                 >
-                  <option value="admin">admin</option>
-                  <option value="staff">staff</option>
-                  <option value="scanner">scanner</option>
-                </select>
-              ) : null}
+                  <LogOut size={17} strokeWidth={2} />
+                </button>
+              )}
             </div>
           </header>
 
@@ -225,6 +342,96 @@ function AdminLayout({
           <section className="admin-content">{children}</section>
         </div>
       </main>
+
+      <Modal
+        open={isChangePwOpen}
+        onClose={() => (changePwBusy ? null : setIsChangePwOpen(false))}
+        title="เปลี่ยนรหัสผ่าน"
+        description={sessionUser ? sessionUser.email : ""}
+        size="sm"
+        closeOnBackdrop={!changePwBusy}
+      >
+        {changePwSuccess ? (
+          <div className="auth-form">
+            <p className="auth-form-hint">เปลี่ยนรหัสผ่านเรียบร้อยแล้ว</p>
+            <div className="auth-form-actions">
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => setIsChangePwOpen(false)}
+              >
+                เสร็จสิ้น
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={submitChangePw} className="auth-form">
+            <label className="auth-form-field">
+              <span>รหัสผ่านปัจจุบัน</span>
+              <input
+                className="input-control"
+                type="password"
+                value={changePwDraft.current}
+                onChange={(event) =>
+                  setChangePwDraft({ ...changePwDraft, current: event.target.value })
+                }
+                autoComplete="current-password"
+                required
+                disabled={changePwBusy}
+              />
+            </label>
+            <label className="auth-form-field">
+              <span>รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)</span>
+              <input
+                className="input-control"
+                type="password"
+                value={changePwDraft.next}
+                onChange={(event) =>
+                  setChangePwDraft({ ...changePwDraft, next: event.target.value })
+                }
+                autoComplete="new-password"
+                minLength={8}
+                required
+                disabled={changePwBusy}
+              />
+            </label>
+            <label className="auth-form-field">
+              <span>ยืนยันรหัสผ่านใหม่</span>
+              <input
+                className="input-control"
+                type="password"
+                value={changePwDraft.confirm}
+                onChange={(event) =>
+                  setChangePwDraft({ ...changePwDraft, confirm: event.target.value })
+                }
+                autoComplete="new-password"
+                minLength={8}
+                required
+                disabled={changePwBusy}
+              />
+            </label>
+            {changePwError ? <p className="login-form-error">{changePwError}</p> : null}
+            <div className="auth-form-actions">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsChangePwOpen(false)}
+                disabled={changePwBusy}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                loading={changePwBusy}
+                disabled={changePwBusy}
+              >
+                บันทึก
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }

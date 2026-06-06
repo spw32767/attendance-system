@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { SessionProvider } from "./contexts/SessionContext";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AttendanceTemplatesPage from "./pages/AttendanceTemplatesPage";
 import CreateAttendanceTemplatePage from "./pages/CreateAttendanceTemplatePage";
@@ -644,6 +645,20 @@ function App() {
     setUsers(nextUsers);
   };
 
+  const handleCreateUser = async (payload) => {
+    await adminDataAdapter.createUser(payload);
+    const [nextUsers] = await Promise.all([adminDataAdapter.listUsers()]);
+    setUsers(nextUsers);
+  };
+
+  const handleResetUserPassword = async (userId, newPassword) => {
+    await adminDataAdapter.resetUserPassword(userId, newPassword);
+  };
+
+  const handleChangeOwnPassword = async (currentPassword, newPassword) => {
+    await adminDataAdapter.changeOwnPassword(currentPassword, newPassword);
+  };
+
   const handleScanToken = async (token) => {
     const result = await adminDataAdapter.scanClaimToken(token);
     setScanResult(result);
@@ -943,6 +958,8 @@ function App() {
         users={users}
         ssoAccounts={ssoAccounts}
         onUpdateUser={handleUpdateUser}
+        onCreateUser={handleCreateUser}
+        onResetUserPassword={handleResetUserPassword}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -1197,7 +1214,11 @@ function App() {
     );
   }
 
-  return currentPage;
+  return (
+    <SessionProvider value={{ sessionUser, onChangeOwnPassword: handleChangeOwnPassword }}>
+      {currentPage}
+    </SessionProvider>
+  );
 }
 
 export default App;

@@ -1,6 +1,12 @@
 import { FastifyPluginAsync } from "fastify";
 import fastifyMultipart from "@fastify/multipart";
 import {
+  createUser,
+  destroyAllSessionsForUser,
+  setUserPassword,
+  verifyUserPassword
+} from "../auth/auth.data";
+import {
   buildImportTemplateExcel,
   exportFormSubmissionsExcel,
   getFormDraft,
@@ -266,6 +272,73 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
     const userId = toNumber((request.params as Record<string, string>).userId);
     const body = (request.body || {}) as Record<string, any>;
     await updateUser(Number(userId), body);
+    return { ok: true };
+  });
+
+  // ---- user create / password reset (admin-only via middleware role rule) ----
+
+  fastify.post("/admin/users", async (request, reply) => {
+    const body = (request.body || {}) as Record<string, any>;
+    const result = await createUser({
+      email: body.email,
+      display_name: body.display_name,
+      role_code: body.role_code,
+      password: body.password,
+      first_name: body.first_name ?? null,
+      last_name: body.last_name ?? null,
+      allow_local_login: body.allow_local_login !== false,
+      allow_sso_login: body.allow_sso_login === true
+    });
+
+    if (!result.ok) {
+      const messageByReason: Record<string, string> = {
+        invalid_email: "อีเมลไม่ถูกต้อง",
+        missing_display_name: "กรุณากรอกชื่อแสดง",
+        invalid_role: "ระบุบทบาทไม่ถูกต้อง",
+        weak_password: "รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร",
+        email_taken: "อีเมลนี้ถูกใช้งานแล้ว"
+      };
+      return reply.code(400).send({
+        error: messageByReason[result.reason] || "สร้างผู้ใช้งานไม่สำเร็จ",
+        reason: result.reason
+      });
+    }
+    return { userId: result.userId };
+  });
+
+  fastify.post("/admin/users/:userId/reset-password", async (request, reply) => {
+    const userId = toNumber((request.params as Record<string, string>).userId);
+    if (!userId) {
+      return reply.code(400).send({ error: "missing userId" });
+    }
+    const body = (request.body || {}) as Record<string, any>;
+    const result = await setUserPassword(Number(userId), String(body.password || ""));
+    if (!result.ok) {
+      if (result.reason === "weak_password") {
+        return reply.code(400).send({ error: "รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร" });
+      }
+      return reply.code(404).send({ error: "ไม่พบผู้ใช้งาน" });
+    }
+    // Drop existing sessions so the user is forced to re-login with the new password.
+    await destroyAllSessionsForUser(Number(userId));
+    return { ok: true };
+  });
+
+  // ---- self-service password change (any authed user) ----
+  fastify.post("/admin/me/password", async (request, reply) => {
+    const user = request.sessionUser;
+    if (!user) {
+      return reply.code(401).send({ error: "unauthenticated" });
+    }
+    const body = (request.body || {}) as Record<string, any>;
+    const currentOk = await verifyUserPassword(user.user_id, String(body.current_password || ""));
+    if (!currentOk) {
+      return reply.code(400).send({ error: "รหัสผ่านปัจจุบันไม่ถูกต้อง" });
+    }
+    const result = await setUserPassword(user.user_id, String(body.new_password || ""));
+    if (!result.ok) {
+      return reply.code(400).send({ error: "รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร" });
+    }
     return { ok: true };
   });
 };
