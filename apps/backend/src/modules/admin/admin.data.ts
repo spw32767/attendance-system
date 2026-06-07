@@ -975,6 +975,28 @@ export const saveFormDraft = async (
       : [];
 
     const existingForm = existingFormRows[0] || null;
+
+    // Guard: don't wipe an existing form's structure on accident. A save
+    // with fields=[] on a form that currently has active fields will
+    // soft-delete all of them (sync semantics). Refuse unless the caller
+    // explicitly opts in via draft.confirm_clear_fields.
+    if (existingForm && Array.isArray(draft.fields) && draft.fields.length === 0) {
+      const currentFields = await queryRows<AnyRow>(
+        `SELECT COUNT(*) AS field_count FROM form_fields WHERE form_id = ? AND deleted_at IS NULL`,
+        [formId],
+        connection
+      );
+      const activeCount = Number(currentFields[0]?.field_count || 0);
+      if (activeCount > 0 && !draft.confirm_clear_fields) {
+        const err = new Error(
+          `กำลังจะลบทุกคำถามในฟอร์มนี้ (${activeCount} ข้อ) — ส่ง confirm_clear_fields: true หากต้องการล้างจริง`
+        );
+        (err as any).statusCode = 400;
+        (err as any).code = "fields_clear_unconfirmed";
+        throw err;
+      }
+    }
+
     const existingSettings = parseJson<Record<string, any>>(existingForm?.settings_json, {});
     const nextSettings = {
       ...existingSettings,
