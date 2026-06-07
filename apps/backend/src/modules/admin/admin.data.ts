@@ -2905,6 +2905,150 @@ export const importFormSubmissionsFromExcel = async (
   };
 };
 
+export type ItemUpsertInput = {
+  item_code?: string;
+  item_name?: string;
+  item_type?: string;
+  default_qty?: number | string;
+  is_active?: boolean;
+  description?: string;
+};
+
+export type ItemMutationError =
+  | "missing_name"
+  | "invalid_qty"
+  | "duplicate_code"
+  | "form_not_found"
+  | "not_found";
+
+const slugifyItemCode = (value: string) =>
+  String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
+
+export const createItem = async (
+  formId: number,
+  input: ItemUpsertInput
+): Promise<{ ok: false; reason: ItemMutationError } | { ok: true; itemId: number }> => {
+  const name = (input.item_name || "").trim();
+  const code =
+    (input.item_code || "").trim() ||
+    slugifyItemCode(input.item_name || "") ||
+    `ITEM_${Date.now()}`;
+  const type = (input.item_type || "souvenir").trim().slice(0, 50) || "souvenir";
+  const qty = Math.max(1, Math.min(Number(input.default_qty) || 1, 1000));
+
+  if (!name) {
+    return { ok: false, reason: "missing_name" };
+  }
+  if (!Number.isFinite(Number(input.default_qty) || 1)) {
+    return { ok: false, reason: "invalid_qty" };
+  }
+
+  const [formRows] = await pool.query<RowDataPacket[]>(
+    `SELECT form_id FROM form_forms WHERE form_id = ? AND deleted_at IS NULL LIMIT 1`,
+    [formId]
+  );
+  if (formRows.length === 0) {
+    return { ok: false, reason: "form_not_found" };
+  }
+
+  const [dup] = await pool.query<RowDataPacket[]>(
+    `SELECT item_id FROM item_catalogs WHERE form_id = ? AND item_code = ? AND deleted_at IS NULL LIMIT 1`,
+    [formId, code]
+  );
+  if (dup.length > 0) {
+    return { ok: false, reason: "duplicate_code" };
+  }
+
+  const [maxSort] = await pool.query<RowDataPacket[]>(
+    `SELECT COALESCE(MAX(sort_order), 0) AS next FROM item_catalogs WHERE form_id = ?`,
+    [formId]
+  );
+  const nextSort = Number(maxSort[0]?.next || 0) + 1;
+
+  const [result] = await pool.execute<ResultSetHeader>(
+    `
+      INSERT INTO item_catalogs
+        (form_id, item_code, item_name, item_type, description,
+         default_qty, sort_order, is_active,
+         issue_qr_code, include_in_confirmation_email)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, 1)
+    `,
+    [formId, code, name, type, input.description || null, qty, nextSort]
+  );
+  return { ok: true, itemId: Number(result.insertId) };
+};
+
+export const updateItem = async (
+  itemId: number,
+  input: ItemUpsertInput
+): Promise<{ ok: false; reason: ItemMutationError } | { ok: true }> => {
+  const [existing] = await pool.query<RowDataPacket[]>(
+    `SELECT item_id, form_id, item_code FROM item_catalogs WHERE item_id = ? AND deleted_at IS NULL LIMIT 1`,
+    [itemId]
+  );
+  if (existing.length === 0) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const current = existing[0];
+  const name = input.item_name !== undefined ? String(input.item_name).trim() : null;
+  const type = input.item_type !== undefined ? String(input.item_type).trim().slice(0, 50) : null;
+  const code = input.item_code !== undefined ? String(input.item_code).trim() : null;
+  const qtyRaw = input.default_qty;
+  const qty =
+    qtyRaw === undefined ? null : Math.max(1, Math.min(Number(qtyRaw) || 1, 1000));
+
+  if (name !== null && !name) {
+    return { ok: false, reason: "missing_name" };
+  }
+
+  if (code && code !== current.item_code) {
+    const [dup] = await pool.query<RowDataPacket[]>(
+      `SELECT item_id FROM item_catalogs WHERE form_id = ? AND item_code = ? AND item_id <> ? AND deleted_at IS NULL LIMIT 1`,
+      [current.form_id, code, itemId]
+    );
+    if (dup.length > 0) {
+      return { ok: false, reason: "duplicate_code" };
+    }
+  }
+
+  await pool.execute(
+    `
+      UPDATE item_catalogs
+      SET item_name = COALESCE(?, item_name),
+          item_code = COALESCE(?, item_code),
+          item_type = COALESCE(?, item_type),
+          default_qty = COALESCE(?, default_qty),
+          is_active = COALESCE(?, is_active),
+          description = COALESCE(?, description)
+      WHERE item_id = ? AND deleted_at IS NULL
+    `,
+    [
+      name,
+      code,
+      type,
+      qty,
+      input.is_active === undefined ? null : input.is_active ? 1 : 0,
+      input.description === undefined ? null : input.description || null,
+      itemId
+    ]
+  );
+  return { ok: true };
+};
+
+export const deleteItem = async (itemId: number): Promise<boolean> => {
+  const [result] = await pool.execute<ResultSetHeader>(
+    `UPDATE item_catalogs SET deleted_at = CURRENT_TIMESTAMP WHERE item_id = ? AND deleted_at IS NULL`,
+    [itemId]
+  );
+  return Boolean(result.affectedRows);
+};
+
 export const listItems = async () => {
   const rows = await queryRows<AnyRow>(
     `

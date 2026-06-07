@@ -9,10 +9,13 @@ import {
 import { readStoredFile, StagedFile } from "../../lib/uploads";
 import {
   buildImportTemplateExcel,
+  createItem,
+  deleteItem,
   exportFormSubmissionsExcel,
   getFormDraft,
   getSubmissionDetail,
   getSubmissionFile,
+  updateItem,
   importFormSubmissionsFromExcel,
   previewImportFormSubmissionsFromExcel,
   listAdminLoginLogs,
@@ -327,6 +330,74 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
   });
 
   fastify.get("/admin/items", async () => ({ data: await listItems() }));
+
+  fastify.post("/admin/forms/:formId/items", async (request, reply) => {
+    const formId = toNumber((request.params as Record<string, string>).formId);
+    if (!formId) {
+      return reply.code(400).send({ error: "missing formId" });
+    }
+    const body = (request.body || {}) as Record<string, any>;
+    const result = await createItem(Number(formId), {
+      item_code: body.item_code,
+      item_name: body.item_name,
+      item_type: body.item_type,
+      default_qty: body.default_qty,
+      description: body.description
+    });
+    if (!result.ok) {
+      const msgs: Record<string, string> = {
+        missing_name: "กรุณากรอกชื่อรายการ",
+        invalid_qty: "จำนวนต้องเป็นตัวเลขที่ถูกต้อง",
+        duplicate_code: "รหัสรายการนี้มีอยู่แล้วในฟอร์ม",
+        form_not_found: "ไม่พบฟอร์ม"
+      };
+      return reply
+        .code(result.reason === "form_not_found" ? 404 : 400)
+        .send({ error: msgs[result.reason] || "สร้างรายการไม่สำเร็จ", reason: result.reason });
+    }
+    return { itemId: result.itemId };
+  });
+
+  fastify.patch("/admin/items/:itemId", async (request, reply) => {
+    const itemId = toNumber((request.params as Record<string, string>).itemId);
+    if (!itemId) {
+      return reply.code(400).send({ error: "missing itemId" });
+    }
+    const body = (request.body || {}) as Record<string, any>;
+    const result = await updateItem(Number(itemId), {
+      item_code: body.item_code,
+      item_name: body.item_name,
+      item_type: body.item_type,
+      default_qty: body.default_qty,
+      is_active: body.is_active,
+      description: body.description
+    });
+    if (!result.ok) {
+      const msgs: Record<string, string> = {
+        missing_name: "กรุณากรอกชื่อรายการ",
+        invalid_qty: "จำนวนต้องเป็นตัวเลขที่ถูกต้อง",
+        duplicate_code: "รหัสรายการนี้มีอยู่แล้วในฟอร์ม",
+        not_found: "ไม่พบรายการ"
+      };
+      return reply
+        .code(result.reason === "not_found" ? 404 : 400)
+        .send({ error: msgs[result.reason] || "แก้ไขรายการไม่สำเร็จ", reason: result.reason });
+    }
+    return { ok: true };
+  });
+
+  fastify.delete("/admin/items/:itemId", async (request, reply) => {
+    const itemId = toNumber((request.params as Record<string, string>).itemId);
+    if (!itemId) {
+      return reply.code(400).send({ error: "missing itemId" });
+    }
+    const ok = await deleteItem(Number(itemId));
+    if (!ok) {
+      return reply.code(404).send({ error: "ไม่พบรายการ" });
+    }
+    return { ok: true };
+  });
+
   fastify.get("/admin/claims", async () => ({ data: await listClaims() }));
 
   fastify.patch("/admin/claims/:claimId/status", async (request) => {

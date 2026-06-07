@@ -283,6 +283,16 @@ export const apiAdminService = {
     downloadFile(`/admin/submissions/${submissionId}/files/${fileId}`),
 
   listItems: () => readCollection("/admin/items"),
+
+  createItem: (formId, payload) =>
+    request(`/admin/forms/${formId}/items`, { method: "POST", body: payload }),
+
+  updateItem: (itemId, payload) =>
+    request(`/admin/items/${itemId}`, { method: "PATCH", body: payload }),
+
+  deleteItem: (itemId) =>
+    request(`/admin/items/${itemId}`, { method: "DELETE" }),
+
   listClaims: () => readCollection("/admin/claims"),
 
   updateClaimStatus: (claimId, receiveStatus) =>

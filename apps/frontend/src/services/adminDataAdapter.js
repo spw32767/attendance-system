@@ -26,6 +26,9 @@ export const adminDataAdapter = {
   downloadSubmissionFile: (...args) => provider.downloadSubmissionFile(...args),
 
   listItems: (...args) => provider.listItems(...args),
+  createItem: (...args) => provider.createItem(...args),
+  updateItem: (...args) => provider.updateItem(...args),
+  deleteItem: (...args) => provider.deleteItem(...args),
   listClaims: (...args) => provider.listClaims(...args),
   updateClaimStatus: (...args) => provider.updateClaimStatus(...args),
   scanClaimToken: (...args) => provider.scanClaimToken(...args),

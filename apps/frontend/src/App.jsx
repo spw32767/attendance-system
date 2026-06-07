@@ -631,6 +631,24 @@ function App() {
     setClaims(nextClaims);
   };
 
+  const handleCreateItem = async (formId, payload) => {
+    await adminDataAdapter.createItem(formId, payload);
+    const [nextItems] = await Promise.all([adminDataAdapter.listItems()]);
+    setItems(nextItems);
+  };
+
+  const handleUpdateItem = async (itemId, payload) => {
+    await adminDataAdapter.updateItem(itemId, payload);
+    const [nextItems] = await Promise.all([adminDataAdapter.listItems()]);
+    setItems(nextItems);
+  };
+
+  const handleDeleteItem = async (itemId) => {
+    await adminDataAdapter.deleteItem(itemId);
+    const [nextItems] = await Promise.all([adminDataAdapter.listItems()]);
+    setItems(nextItems);
+  };
+
   const handleSaveEmailTemplate = async (templateId, payload) => {
     await adminDataAdapter.updateEmailTemplate(templateId, payload);
     const [nextEmailTemplates] = await Promise.all([
@@ -1071,6 +1089,9 @@ function App() {
         projects={projectsWithLabel}
         forms={formsWithProjectName}
         onUpdateClaimStatus={handleUpdateClaimStatus}
+        onCreateItem={handleCreateItem}
+        onUpdateItem={handleUpdateItem}
+        onDeleteItem={handleDeleteItem}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
