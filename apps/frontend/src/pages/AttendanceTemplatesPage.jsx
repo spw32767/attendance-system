@@ -8,7 +8,9 @@ import {
   Package,
   Mail,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Copy,
+  Check
 } from "lucide-react";
 import { Button, PageHead } from "../components/ui";
 import AdminLayout from "../components/AdminLayout";
@@ -76,6 +78,35 @@ function AttendanceTemplatesPage({
 }) {
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(1);
+  const [copiedId, setCopiedId] = useState(null);
+
+  const handleCopyLink = async (publicPath, formId) => {
+    const url = buildPublicFormUrl(publicPath);
+    if (!url) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // Fallback for older browsers / non-secure (http) contexts.
+      const helper = document.createElement("textarea");
+      helper.value = url;
+      helper.style.position = "fixed";
+      helper.style.opacity = "0";
+      document.body.appendChild(helper);
+      helper.select();
+      try {
+        document.execCommand("copy");
+      } catch {
+        /* ignore */
+      }
+      document.body.removeChild(helper);
+    }
+    setCopiedId(formId);
+    window.setTimeout(() => {
+      setCopiedId((current) => (current === formId ? null : current));
+    }, 1500);
+  };
 
   const filteredTemplates = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
@@ -201,19 +232,47 @@ function AttendanceTemplatesPage({
                         </div>
                       </td>
                       <td className="table-col-meta">
-                        <div className="template-url">
-                          {template.public_path ? (
-                            <a
-                              href={buildPublicFormUrl(template.public_path)}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              {buildPublicFormUrl(template.public_path)}
-                            </a>
-                          ) : (
-                            <span>-</span>
-                          )}
-                        </div>
+                        {template.public_path ? (
+                          <div className="template-url">
+                            <div className="template-url-row">
+                              <a
+                                href={buildPublicFormUrl(template.public_path)}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {buildPublicFormUrl(template.public_path)}
+                              </a>
+                              <button
+                                type="button"
+                                className="copy-link-button"
+                                onClick={() =>
+                                  handleCopyLink(template.public_path, template.form_id)
+                                }
+                                title="คัดลอกลิงก์ฟอร์ม"
+                                aria-label="คัดลอกลิงก์ฟอร์ม"
+                              >
+                                {copiedId === template.form_id ? (
+                                  <>
+                                    <Check size={13} strokeWidth={2} aria-hidden="true" />
+                                    <span>คัดลอกแล้ว</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={13} strokeWidth={2} aria-hidden="true" />
+                                    <span>คัดลอก</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                            {template.status !== "published" ? (
+                              <small className="template-url-hint">
+                                ยังไม่เผยแพร่ — ลิงก์จะใช้ได้เมื่อเปลี่ยนสถานะเป็นเผยแพร่
+                              </small>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span>-</span>
+                        )}
                       </td>
                       <td className="table-col-date">
                         <div className="table-primary-cell">
