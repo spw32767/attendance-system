@@ -1287,9 +1287,7 @@ button:disabled {
 
 .public-form-shell {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: var(--space-5) var(--space-4);
+  padding: var(--space-6) var(--space-4);
   background: var(--bg-page);
   position: relative;
 }
@@ -1301,6 +1299,7 @@ button:disabled {
 
 .public-form-card {
   width: min(100%, 640px);
+  margin: 0 auto;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-lg);
   background: var(--surface-base);
@@ -3046,7 +3045,8 @@ button:disabled {
 
 /* --- Google Forms Preview (Enhanced) --- */
 .google-preview-surface {
-  max-width: 680px;
+  width: 100%;
+  max-width: 640px;
   margin: 0 auto;
   display: grid;
   gap: 12px;
