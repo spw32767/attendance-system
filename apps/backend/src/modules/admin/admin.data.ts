@@ -483,7 +483,7 @@ const loadDraftFields = async (formId: number, connection?: PoolConnection) => {
   }));
 };
 
-const getFormStatus = (form: AnyPayload | null) => {
+export const getFormStatus = (form: AnyPayload | null) => {
   if (!form) {
     return "not_found";
   }
@@ -1635,7 +1635,7 @@ type SubmitFormOptions = {
  * Did the user actually answer this field? Empty string, null, undefined,
  * and empty arrays all count as "no answer" for required-field enforcement.
  */
-const isAnswerEmpty = (fieldType: string, rawValue: unknown): boolean => {
+export const isAnswerEmpty = (fieldType: string, rawValue: unknown): boolean => {
   if (rawValue === undefined || rawValue === null) {
     return true;
   }

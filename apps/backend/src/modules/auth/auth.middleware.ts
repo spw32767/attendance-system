@@ -47,7 +47,7 @@ const ROLE_RULES: Array<{ match: RegExp; roles: string[] }> = [
 /** Default for any /api/admin/* path not matched by ROLE_RULES. */
 const ADMIN_DEFAULT_ROLES = [SUPER, ADMIN, STAFF];
 
-const isProtectedPath = (url: string) => {
+export const isProtectedPath = (url: string) => {
   const path = url.split("?")[0];
   if (PUBLIC_PATHS.has(path)) {
     return false;
@@ -58,7 +58,7 @@ const isProtectedPath = (url: string) => {
   return path.startsWith("/api/admin/");
 };
 
-const allowedRolesFor = (url: string): string[] => {
+export const allowedRolesFor = (url: string): string[] => {
   const path = url.split("?")[0];
   for (const rule of ROLE_RULES) {
     if (rule.match.test(path)) {
