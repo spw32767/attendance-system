@@ -684,19 +684,17 @@ const renderTemplate = (template: string, replacements: Record<string, string>) 
   return output;
 };
 
+// Lead-in line shown above the styled QR cards (rendered by email.service).
+// The per-item names + tokens live in those cards, so we no longer repeat
+// them here — this just sets up what the cards below are for.
 const buildClaimLinesHtml = (qrTokens: ClaimQrToken[]) => {
+  // No prizes on this form: stay silent. The recipient doesn't know prizes
+  // were ever an option, so a "no prizes" note would only raise questions.
   if (!qrTokens.length) {
-    return "<p>ไม่มีรายการของรางวัลสำหรับการสแกนในครั้งนี้</p>";
+    return "";
   }
 
-  const itemsHtml = qrTokens
-    .map(
-      (row) =>
-        `<li><strong>${row.label}</strong><br/><small>Token: <code>${row.token}</code></small></li>`
-    )
-    .join("");
-
-  return `<p>รายการของรางวัลที่สามารถสแกนรับของได้:</p><ul>${itemsHtml}</ul>`;
+  return `<p style="margin:22px 0 0;">กรุณานำ <strong>QR code</strong> ด้านล่างไปแสดงที่จุดรับของ เพื่อรับของรางวัลของคุณ</p>`;
 };
 
 const dispatchPendingEmail = async (pendingEmail: PendingEmailDispatch | null) => {
@@ -1478,7 +1476,11 @@ export const updateSubmission = async (submissionId: number, payload: AnyPayload
       .filter((row) => row.token);
 
     const emailSubject = `ยืนยันเช็กอิน ${current.form_name || "-"} - ${current.submission_code || ""}`.slice(0, 255);
-    const emailBody = `<p>สวัสดี ${identity.respondentName || "ผู้เข้าร่วม"}</p><p>ระบบได้ยืนยันการเช็กอินของคุณสำหรับฟอร์ม <strong>${current.form_name || "-"}</strong> แล้ว</p><p>รหัสการลงทะเบียน: <strong>${current.submission_code || "-"}</strong></p>${buildClaimLinesHtml(claimQrTokens)}`;
+    const emailBody =
+      `<p style="margin:0 0 14px;font-size:16px;">สวัสดีคุณ <strong>${identity.respondentName || "ผู้เข้าร่วม"}</strong></p>` +
+      `<p style="margin:0 0 20px;">ระบบได้ยืนยันการเช็กอินของคุณสำหรับงาน <strong style="color:#0f172a;">${current.form_name || "-"}</strong> เรียบร้อยแล้ว</p>` +
+      `<p style="margin:0;">รหัสการลงทะเบียน: <strong style="color:#0f172a;">${current.submission_code || "-"}</strong></p>` +
+      buildClaimLinesHtml(claimQrTokens);
 
     const insertResult = await execute(
       `
