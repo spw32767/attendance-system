@@ -44,8 +44,11 @@ const handleAuthFailure = (status) => {
   if (status !== 401) {
     return;
   }
-  // If we're already on the login page don't bounce.
-  if (window.location.pathname === "/login") {
+  // Don't bounce to login when we're already there, or on a public form
+  // route. Public form pages are meant for logged-out visitors, and the
+  // /auth/me probe returning 401 there is expected — not a reason to redirect.
+  const { pathname } = window.location;
+  if (pathname === "/login" || pathname.startsWith("/forms/")) {
     return;
   }
   window.location.assign("/login");
