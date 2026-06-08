@@ -657,6 +657,15 @@ function App() {
     setEmailTemplates(nextEmailTemplates);
   };
 
+  const handleCreateEmailTemplate = async (payload) => {
+    const result = await adminDataAdapter.createEmailTemplate(payload);
+    const [nextEmailTemplates] = await Promise.all([
+      adminDataAdapter.listEmailTemplates()
+    ]);
+    setEmailTemplates(nextEmailTemplates);
+    return result;
+  };
+
   const handleUpdateUser = async (userId, payload) => {
     await adminDataAdapter.updateUser(userId, payload);
     const [nextUsers] = await Promise.all([adminDataAdapter.listUsers()]);
@@ -1112,6 +1121,7 @@ function App() {
         projects={projectsWithLabel}
         forms={formsWithProjectName}
         onSaveTemplate={handleSaveEmailTemplate}
+        onCreateTemplate={handleCreateEmailTemplate}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}

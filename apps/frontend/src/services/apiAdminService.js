@@ -309,6 +309,12 @@ export const apiAdminService = {
 
   listEmailTemplates: () => readCollection("/admin/email/templates"),
 
+  createEmailTemplate: (payload) =>
+    request("/admin/email/templates", {
+      method: "POST",
+      body: payload
+    }),
+
   updateEmailTemplate: (templateId, payload) =>
     request(`/admin/email/templates/${templateId}`, {
       method: "PATCH",

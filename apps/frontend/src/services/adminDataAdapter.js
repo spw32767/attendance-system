@@ -34,6 +34,7 @@ export const adminDataAdapter = {
   scanClaimToken: (...args) => provider.scanClaimToken(...args),
 
   listEmailTemplates: (...args) => provider.listEmailTemplates(...args),
+  createEmailTemplate: (...args) => provider.createEmailTemplate(...args),
   updateEmailTemplate: (...args) => provider.updateEmailTemplate(...args),
   listEmailLogs: (...args) => provider.listEmailLogs(...args),
 

@@ -9,6 +9,7 @@ import {
 import { readStoredFile, StagedFile } from "../../lib/uploads";
 import {
   buildImportTemplateExcel,
+  createEmailTemplate,
   createItem,
   deleteItem,
   exportFormSubmissionsExcel,
@@ -414,6 +415,32 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
 
   fastify.get("/admin/email/templates", async () => ({ data: await listEmailTemplates() }));
   fastify.get("/admin/email/logs", async () => ({ data: await listEmailLogs() }));
+
+  fastify.post("/admin/email/templates", async (request, reply) => {
+    const body = (request.body || {}) as Record<string, any>;
+    const result = await createEmailTemplate({
+      form_id: body.form_id,
+      notification_code: body.notification_code,
+      template_name: body.template_name,
+      email_subject: body.email_subject,
+      email_body: body.email_body,
+      is_active: body.is_active
+    });
+    if (!result.ok) {
+      const msgs: Record<string, string> = {
+        invalid_form: "กรุณาเลือกฟอร์ม",
+        missing_name: "กรุณากรอกชื่อเทมเพลต",
+        missing_subject: "กรุณากรอกหัวข้ออีเมล",
+        missing_body: "กรุณากรอกเนื้อหาอีเมล",
+        form_not_found: "ไม่พบฟอร์ม",
+        duplicate: "ฟอร์มนี้มีเทมเพลตประเภทนี้อยู่แล้ว"
+      };
+      return reply
+        .code(result.reason === "form_not_found" ? 404 : 400)
+        .send({ error: msgs[result.reason] || "สร้างเทมเพลตไม่สำเร็จ", reason: result.reason });
+    }
+    return { templateId: result.templateId };
+  });
 
   fastify.patch("/admin/email/templates/:templateId", async (request) => {
     const templateId = toNumber((request.params as Record<string, string>).templateId);

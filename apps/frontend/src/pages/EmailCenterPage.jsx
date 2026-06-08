@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 import { Button, PageHead } from "../components/ui";
 
@@ -9,6 +9,7 @@ function EmailCenterPage({
   projects,
   forms,
   onSaveTemplate,
+  onCreateTemplate,
   onLogout,
   theme,
   onToggleTheme,
@@ -24,6 +25,20 @@ function EmailCenterPage({
   const [editingTemplateId, setEditingTemplateId] = useState(null);
   const [draftSubject, setDraftSubject] = useState("");
   const [draftBody, setDraftBody] = useState("");
+
+  const DEFAULT_SUBJECT = "ยืนยันการลงทะเบียน {{form_name}} - {{submission_code}}";
+  const DEFAULT_BODY =
+    "<p>สวัสดีคุณ {{full_name}}</p>\n" +
+    "<p>ระบบได้รับการลงทะเบียนของคุณสำหรับงาน <strong>{{form_name}}</strong> เรียบร้อยแล้ว</p>\n" +
+    "<p>รหัสการลงทะเบียน: <strong>{{submission_code}}</strong></p>";
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [createFormId, setCreateFormId] = useState("");
+  const [createName, setCreateName] = useState("เทมเพลตยืนยันการลงทะเบียน");
+  const [createSubject, setCreateSubject] = useState(DEFAULT_SUBJECT);
+  const [createBody, setCreateBody] = useState(DEFAULT_BODY);
+  const [createError, setCreateError] = useState("");
+  const [createBusy, setCreateBusy] = useState(false);
 
   const projectForms = useMemo(
     () =>
@@ -70,6 +85,36 @@ function EmailCenterPage({
     () => templates.filter((template) => template.is_active).length,
     [templates]
   );
+
+  const handleSubmitCreate = async () => {
+    setCreateError("");
+    if (!createFormId) {
+      setCreateError("กรุณาเลือกฟอร์ม");
+      return;
+    }
+    if (!createName.trim()) {
+      setCreateError("กรุณากรอกชื่อเทมเพลต");
+      return;
+    }
+    setCreateBusy(true);
+    try {
+      await onCreateTemplate?.({
+        form_id: Number(createFormId),
+        template_name: createName.trim(),
+        email_subject: createSubject,
+        email_body: createBody
+      });
+      setShowCreate(false);
+      setCreateFormId("");
+      setCreateName("เทมเพลตยืนยันการลงทะเบียน");
+      setCreateSubject(DEFAULT_SUBJECT);
+      setCreateBody(DEFAULT_BODY);
+    } catch (err) {
+      setCreateError(err?.message || "สร้างเทมเพลตไม่สำเร็จ");
+    } finally {
+      setCreateBusy(false);
+    }
+  };
 
   return (
     <AdminLayout
@@ -140,7 +185,96 @@ function EmailCenterPage({
               ? `แสดง ${visibleTemplates.length} เทมเพลต`
               : `แสดง ${visibleLogs.length} รายการส่งอีเมล`}
           </p>
+          {activeTab === "templates" ? (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                setShowCreate((value) => !value);
+                setCreateError("");
+              }}
+            >
+              <Plus size={13} strokeWidth={2} aria-hidden="true" />
+              <span>เพิ่มเทมเพลต</span>
+            </Button>
+          ) : null}
         </div>
+
+        {activeTab === "templates" && showCreate ? (
+          <section className="module-placeholder-card templates-card-inset">
+            <p>สร้างเทมเพลตใหม่</p>
+            <div className="builder-meta-grid" style={{ marginTop: 12 }}>
+              <label className="full-width">
+                <span>ฟอร์ม</span>
+                <select
+                  className="select-control"
+                  value={createFormId}
+                  onChange={(event) => setCreateFormId(event.target.value)}
+                >
+                  <option value="">เลือกฟอร์ม</option>
+                  {forms.map((form) => (
+                    <option key={form.form_id} value={form.form_id}>
+                      {form.project_name
+                        ? `${form.project_name} / ${form.form_name}`
+                        : form.form_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="full-width">
+                <span>ชื่อเทมเพลต</span>
+                <input
+                  className="input-control"
+                  value={createName}
+                  onChange={(event) => setCreateName(event.target.value)}
+                />
+              </label>
+              <label className="full-width">
+                <span>หัวข้ออีเมล</span>
+                <input
+                  className="input-control"
+                  value={createSubject}
+                  onChange={(event) => setCreateSubject(event.target.value)}
+                />
+              </label>
+              <label className="full-width">
+                <span>เนื้อหาอีเมล</span>
+                <textarea
+                  className="textarea-control"
+                  rows={6}
+                  value={createBody}
+                  onChange={(event) => setCreateBody(event.target.value)}
+                />
+              </label>
+            </div>
+            <p className="templates-search-meta" style={{ marginTop: 8 }}>
+              ตัวแปรที่ใช้ได้: {"{{full_name}}"} · {"{{form_name}}"} · {"{{submission_code}}"}
+            </p>
+            {createError ? (
+              <p style={{ color: "var(--danger)", marginTop: 8 }}>{createError}</p>
+            ) : null}
+            <div className="inline-action-row" style={{ marginTop: 12 }}>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={createBusy}
+                onClick={handleSubmitCreate}
+              >
+                {createBusy ? "กำลังสร้าง…" : "สร้างเทมเพลต"}
+              </button>
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => {
+                  setShowCreate(false);
+                  setCreateError("");
+                }}
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         <div className="templates-table-wrap">
           {activeTab === "templates" ? (

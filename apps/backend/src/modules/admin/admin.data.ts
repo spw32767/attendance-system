@@ -684,6 +684,20 @@ const renderTemplate = (template: string, replacements: Record<string, string>) 
   return output;
 };
 
+// Default submission-confirmation email seeded for every newly created form,
+// so registration confirmations fire out of the box. Placeholders are filled
+// by renderTemplate at send time; the styled shell + QR cards are added by
+// email.service. Admins can edit or replace this from the Email page.
+const DEFAULT_SUBMISSION_EMAIL_TEMPLATE = {
+  notificationCode: "submission_confirmation",
+  templateName: "เทมเพลตยืนยันการลงทะเบียน",
+  subject: "ยืนยันการลงทะเบียน {{form_name}} - {{submission_code}}",
+  body:
+    "<p>สวัสดีคุณ {{full_name}}</p>" +
+    "<p>ระบบได้รับการลงทะเบียนของคุณสำหรับงาน <strong>{{form_name}}</strong> เรียบร้อยแล้ว</p>" +
+    "<p>รหัสการลงทะเบียน: <strong>{{submission_code}}</strong></p>"
+};
+
 // Lead-in line shown above the styled QR cards (rendered by email.service).
 // The per-item names + tokens live in those cards, so we no longer repeat
 // them here — this just sets up what the cards below are for.
@@ -1078,6 +1092,23 @@ export const saveFormDraft = async (
       await execute(
         `UPDATE form_forms SET form_code = ? WHERE form_id = ?`,
         [toFormCode(draft.form_name, resolvedFormId), resolvedFormId],
+        connection
+      );
+
+      // Seed a default submission-confirmation template so the new form's
+      // registration emails work without a manual setup step.
+      await execute(
+        `INSERT INTO email_notification_templates
+           (form_id, notification_code, template_name, is_active, send_to_field_usage,
+            email_subject_template, email_body_template, include_item_summary, include_qr_codes)
+         VALUES (?, ?, ?, 1, 'email', ?, ?, 1, 1)`,
+        [
+          resolvedFormId,
+          DEFAULT_SUBMISSION_EMAIL_TEMPLATE.notificationCode,
+          DEFAULT_SUBMISSION_EMAIL_TEMPLATE.templateName,
+          DEFAULT_SUBMISSION_EMAIL_TEMPLATE.subject,
+          DEFAULT_SUBMISSION_EMAIL_TEMPLATE.body
+        ],
         connection
       );
     }
@@ -3230,6 +3261,68 @@ export const listEmailTemplates = async () => {
     form_name: row.form_name || "-",
     project_name: row.project_name || "-"
   }));
+};
+
+export const createEmailTemplate = async (
+  payload: AnyPayload
+): Promise<{ ok: false; reason: string } | { ok: true; templateId: number }> => {
+  const formId = Number(payload.form_id);
+  const templateName = String(payload.template_name || "").trim();
+  const subject = String(payload.email_subject || "").trim();
+  const body = String(payload.email_body || "").trim();
+  const notificationCode =
+    String(payload.notification_code || "submission_confirmation").trim() ||
+    "submission_confirmation";
+
+  if (!Number.isFinite(formId) || formId <= 0) {
+    return { ok: false, reason: "invalid_form" };
+  }
+  if (!templateName) {
+    return { ok: false, reason: "missing_name" };
+  }
+  if (!subject) {
+    return { ok: false, reason: "missing_subject" };
+  }
+  if (!body) {
+    return { ok: false, reason: "missing_body" };
+  }
+
+  const [formRows] = await pool.query<RowDataPacket[]>(
+    `SELECT form_id FROM form_forms WHERE form_id = ? AND deleted_at IS NULL LIMIT 1`,
+    [formId]
+  );
+  if (formRows.length === 0) {
+    return { ok: false, reason: "form_not_found" };
+  }
+
+  const [dup] = await pool.query<RowDataPacket[]>(
+    `SELECT email_template_id FROM email_notification_templates
+       WHERE form_id = ? AND notification_code = ? AND deleted_at IS NULL LIMIT 1`,
+    [formId, notificationCode]
+  );
+  if (dup.length > 0) {
+    return { ok: false, reason: "duplicate" };
+  }
+
+  const isActive = payload.is_active === undefined ? 1 : payload.is_active ? 1 : 0;
+
+  try {
+    const [result] = await pool.execute<ResultSetHeader>(
+      `INSERT INTO email_notification_templates
+         (form_id, notification_code, template_name, is_active, send_to_field_usage,
+          email_subject_template, email_body_template, include_item_summary, include_qr_codes)
+       VALUES (?, ?, ?, ?, 'email', ?, ?, 1, 1)`,
+      [formId, notificationCode, templateName, isActive, subject, body]
+    );
+    return { ok: true, templateId: Number(result.insertId) };
+  } catch (error) {
+    // The (form_id, notification_code) unique key spans soft-deleted rows too,
+    // so a previously removed template can still collide. Treat as duplicate.
+    if ((error as { code?: string }).code === "ER_DUP_ENTRY") {
+      return { ok: false, reason: "duplicate" };
+    }
+    throw error;
+  }
 };
 
 export const updateEmailTemplate = async (templateId: number, payload: AnyPayload) => {
