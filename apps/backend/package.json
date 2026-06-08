@@ -9,7 +9,11 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "migrate": "tsx src/db/migrate.ts",
+    "migrate:status": "tsx src/db/migrate.ts status",
+    "migrate:baseline": "tsx src/db/migrate.ts baseline",
+    "migrate:list": "tsx src/db/migrate.ts list"
   },
   "dependencies": {
     "@fastify/cookie": "^9.4.0",
