@@ -34,7 +34,7 @@ function SubmissionsTable({
             rows.map((row) => {
               const statusMeta = STATUS_META[row.attendance_status] || STATUS_META.submitted;
               const canQuickCheckIn =
-                currentRole === "admin" &&
+                ["super_admin", "admin", "staff"].includes(currentRole) &&
                 row.attendance_status !== "present" &&
                 row.attendance_status !== "completed";
               return (
@@ -76,7 +76,7 @@ function SubmissionsTable({
                     <div className="table-actions">
                       {canQuickCheckIn ? (
                         <Button
-                          variant="ghost"
+                          variant="primary"
                           size="sm"
                           disabled={quickCheckInId === row.submission_id}
                           onClick={() => onQuickCheckIn(row.submission_id)}
@@ -88,7 +88,7 @@ function SubmissionsTable({
                         </Button>
                       ) : null}
                       <Button
-                        variant="primary"
+                        variant="ghost"
                         size="sm"
                         onClick={() => onOpenSubmission(row.submission_id)}
                       >

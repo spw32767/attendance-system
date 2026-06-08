@@ -127,11 +127,11 @@ function SubmissionsPage({
         actions={
           <>
             <Button variant="ghost" onClick={() => setIsImportModalOpen(true)}>
-              <Download size={14} aria-hidden="true" />
+              <Upload size={14} aria-hidden="true" />
               <span>Import</span>
             </Button>
             <Button variant="primary" onClick={() => setIsExportModalOpen(true)}>
-              <Upload size={14} aria-hidden="true" />
+              <Download size={14} aria-hidden="true" />
               <span>Export</span>
             </Button>
           </>
