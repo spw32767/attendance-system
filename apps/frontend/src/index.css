@@ -1315,6 +1315,17 @@ button:disabled {
   text-align: center;
 }
 
+.submission-deleted-field-tag {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 1px 8px;
+  font-size: var(--text-xs);
+  border-radius: var(--radius-pill);
+  background: var(--danger-soft);
+  color: var(--danger);
+  vertical-align: middle;
+}
+
 .submission-file-list {
   list-style: none;
   margin: 0;

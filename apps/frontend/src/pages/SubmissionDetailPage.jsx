@@ -199,7 +199,12 @@ function SubmissionDetailPage({
             <tbody>
               {submission.answers.map((answer) => (
                 <tr key={answer.field_id}>
-                  <td>{answer.field_label}</td>
+                  <td>
+                    {answer.field_label}
+                    {answer.is_deleted_field && (
+                      <span className="submission-deleted-field-tag">ถูกลบแล้ว</span>
+                    )}
+                  </td>
                   <td>{FIELD_TYPE_LABELS[answer.field_type] || answer.field_type}</td>
                   <td>{answer.is_required ? "ใช่" : "ไม่"}</td>
                   <td>

@@ -524,17 +524,17 @@ const getSubmissionAnswerRows = async (submissionIds: number[], connection?: Poo
         a.answer_date,
         a.answer_time,
         a.selected_option_id,
-        f.field_label,
+        COALESCE(f.field_label, '(ฟิลด์ที่ถูกลบ)') AS field_label,
         f.field_type,
         f.field_usage,
         f.is_required,
+        f.deleted_at AS field_deleted_at,
         o.option_label AS selected_option_label
       FROM entry_submission_answers a
-      INNER JOIN form_fields f ON f.field_id = a.field_id
+      LEFT JOIN form_fields f ON f.field_id = a.field_id
       LEFT JOIN form_field_options o ON o.option_id = a.selected_option_id
       WHERE a.submission_id IN (${placeholders})
         AND a.deleted_at IS NULL
-        AND f.deleted_at IS NULL
       ORDER BY a.answer_id ASC
     `,
     submissionIds,
@@ -1356,6 +1356,7 @@ export const getSubmissionDetail = async (submissionId: number) => {
       field_label: answerRow.field_label || "",
       field_type: answerRow.field_type || "short_text",
       is_required: toBoolean(answerRow.is_required),
+      is_deleted_field: Boolean(answerRow.field_deleted_at),
       value: mapAnswerValue(
         answerRow,
         checkboxValuesByAnswerId[Number(answerRow.answer_id)] || [],
