@@ -4,6 +4,7 @@ export { default as Textarea } from "./Textarea";
 export { default as Select } from "./Select";
 export { default as Card } from "./Card";
 export { default as Modal } from "./Modal";
+export { default as ConfirmDialog } from "./ConfirmDialog";
 export { default as PageHead } from "./PageHead";
 export { default as EmptyState } from "./EmptyState";
 export { default as Skeleton } from "./Skeleton";

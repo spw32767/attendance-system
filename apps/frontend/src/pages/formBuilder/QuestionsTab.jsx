@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Eye, Pencil, Plus } from "lucide-react";
-import { Button } from "../../components/ui";
+import { Button, ConfirmDialog } from "../../components/ui";
 import FieldPreview from "./FieldPreview";
 import QuestionCard from "./QuestionCard";
 
@@ -23,6 +24,19 @@ function QuestionsTab({
   onFieldDrop,
   onFieldDragEnd
 }) {
+  const [pendingRemoveId, setPendingRemoveId] = useState(null);
+  const pendingRemoveField =
+    pendingRemoveId != null
+      ? draft.fields.find((field) => field.id === pendingRemoveId) || null
+      : null;
+
+  const confirmRemove = () => {
+    if (pendingRemoveId != null) {
+      onRemoveField(pendingRemoveId);
+    }
+    setPendingRemoveId(null);
+  };
+
   return (
     <section className="questions-tab-shell builder-page-width">
       <div className="section-head">
@@ -95,7 +109,7 @@ function QuestionsTab({
               onActivate={onActivateField}
               onUpdate={onUpdateField}
               onDuplicate={onDuplicateField}
-              onRemove={onRemoveField}
+              onRemove={(fieldId) => setPendingRemoveId(fieldId)}
               onAddOption={onAddOption}
               onUpdateOptionLabel={onUpdateOptionLabel}
               onRemoveOption={onRemoveOption}
@@ -107,6 +121,18 @@ function QuestionsTab({
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingRemoveId != null}
+        onClose={() => setPendingRemoveId(null)}
+        onConfirm={confirmRemove}
+        title="ลบคำถามนี้?"
+        confirmLabel="ลบคำถาม"
+      >
+        {pendingRemoveField
+          ? `“${pendingRemoveField.field_label || "คำถามนี้"}” และตัวเลือกทั้งหมดจะถูกลบออกจากแบบฟอร์ม การลบนี้ย้อนกลับไม่ได้`
+          : "การลบนี้ย้อนกลับไม่ได้"}
+      </ConfirmDialog>
     </section>
   );
 }
