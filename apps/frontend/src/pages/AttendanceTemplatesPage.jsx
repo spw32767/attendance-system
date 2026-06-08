@@ -217,7 +217,9 @@ function AttendanceTemplatesPage({
               {pagedTemplates.length === 0 ? (
                 <tr>
                   <td className="empty-row" colSpan={7}>
-                    ไม่พบเทมเพลต
+                    {searchText.trim()
+                      ? "ไม่พบฟอร์มที่ตรงกับคำค้นหา"
+                      : "ยังไม่มีฟอร์มในโครงการนี้ — กดปุ่ม “+ สร้างฟอร์ม” เพื่อเริ่มต้น"}
                   </td>
                 </tr>
               ) : (

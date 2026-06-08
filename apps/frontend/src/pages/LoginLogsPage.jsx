@@ -86,7 +86,14 @@ function LoginLogsPage({
               </tr>
             </thead>
             <tbody>
-              {filteredLogs.map((log) => (
+              {filteredLogs.length === 0 ? (
+                <tr>
+                  <td className="empty-row" colSpan={6}>
+                    ยังไม่มีประวัติการเข้าใช้งาน
+                  </td>
+                </tr>
+              ) : (
+                filteredLogs.map((log) => (
                 <tr key={log.login_log_id}>
                   <td className="table-col-date">{new Date(log.logged_at).toLocaleString("th-TH")}</td>
                   <td className="table-col-meta">{log.email}</td>
@@ -112,7 +119,8 @@ function LoginLogsPage({
                     </div>
                   </td>
                 </tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
         </div>

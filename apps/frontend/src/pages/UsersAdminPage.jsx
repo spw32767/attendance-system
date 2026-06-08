@@ -168,7 +168,14 @@ function UsersAdminPage({
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
+                {users.length === 0 ? (
+                  <tr>
+                    <td className="empty-row" colSpan={6}>
+                      ยังไม่มีผู้ใช้งาน
+                    </td>
+                  </tr>
+                ) : (
+                  users.map((user) => (
                   <tr key={user.user_id}>
                     <td className="table-col-primary table-col-left">
                       <div className="table-primary-cell">
@@ -220,7 +227,8 @@ function UsersAdminPage({
                       </Button>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           ) : (
@@ -235,7 +243,14 @@ function UsersAdminPage({
                 </tr>
               </thead>
               <tbody>
-                {ssoAccounts.map((account) => (
+                {ssoAccounts.length === 0 ? (
+                  <tr>
+                    <td className="empty-row" colSpan={5}>
+                      ยังไม่มีบัญชี SSO ที่เชื่อมต่อ
+                    </td>
+                  </tr>
+                ) : (
+                  ssoAccounts.map((account) => (
                   <tr key={account.sso_account_id}>
                     <td className="table-col-meta">{account.email}</td>
                     <td className="table-col-secondary">{account.provider_name}</td>
@@ -258,7 +273,8 @@ function UsersAdminPage({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           )}
