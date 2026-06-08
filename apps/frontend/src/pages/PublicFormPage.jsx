@@ -241,7 +241,16 @@ function PublicFormPage({
         </article>
 
         <form className="public-live-google-form" onSubmit={handleSubmit}>
-          {orderedFields.map((field) => (
+          {orderedFields.map((field) => {
+            const fieldError = errors[field.id];
+            const errorId = fieldError ? `err-${field.id}` : undefined;
+            const fieldAria = {
+              "aria-label": field.field_label || "คำถาม",
+              "aria-required": field.is_required || undefined,
+              "aria-invalid": fieldError ? true : undefined,
+              "aria-describedby": errorId
+            };
+            return (
             <article
               key={field.id}
               className="google-preview-question-card"
@@ -257,6 +266,7 @@ function PublicFormPage({
               {field.field_type === "short_text" ? (
                 <input
                   className="input-control"
+                  {...fieldAria}
                   value={answers[field.id] || ""}
                   placeholder={field.placeholder || "คำตอบสั้น"}
                   disabled={isSubmitting}
@@ -267,6 +277,7 @@ function PublicFormPage({
               {field.field_type === "long_text" ? (
                 <textarea
                   className="textarea-control"
+                  {...fieldAria}
                   rows={3}
                   value={answers[field.id] || ""}
                   placeholder={field.placeholder || "คำตอบยาว"}
@@ -276,7 +287,11 @@ function PublicFormPage({
               ) : null}
 
               {field.field_type === "multiple_choice" ? (
-                <div className="preview-options">
+                <div
+                  className="preview-options"
+                  role="group"
+                  aria-label={field.field_label || "คำถาม"}
+                >
                   {(field.options || []).map((option) => {
                     const optionValue = option.option_value || option.option_label;
                     return (
@@ -296,7 +311,11 @@ function PublicFormPage({
               ) : null}
 
               {field.field_type === "checkboxes" ? (
-                <div className="preview-options">
+                <div
+                  className="preview-options"
+                  role="group"
+                  aria-label={field.field_label || "คำถาม"}
+                >
                   {(field.options || []).map((option) => {
                     const optionValue = option.option_value || option.option_label;
                     const currentValues = answers[field.id] || [];
@@ -330,6 +349,7 @@ function PublicFormPage({
               {field.field_type === "dropdown" ? (
                 <select
                   className="select-control"
+                  {...fieldAria}
                   value={answers[field.id] || ""}
                   disabled={isSubmitting}
                   onChange={(event) => setAnswer(field.id, event.target.value)}
@@ -346,6 +366,7 @@ function PublicFormPage({
               {field.field_type === "rating" ? (
                 <select
                   className="select-control"
+                  {...fieldAria}
                   value={answers[field.id] || ""}
                   disabled={isSubmitting}
                   onChange={(event) => setAnswer(field.id, event.target.value)}
@@ -370,6 +391,7 @@ function PublicFormPage({
               {field.field_type === "date" ? (
                 <input
                   className="input-control"
+                  {...fieldAria}
                   type="date"
                   value={answers[field.id] || ""}
                   disabled={isSubmitting}
@@ -380,6 +402,7 @@ function PublicFormPage({
               {field.field_type === "time" ? (
                 <input
                   className="input-control"
+                  {...fieldAria}
                   type="time"
                   value={answers[field.id] || ""}
                   disabled={isSubmitting}
@@ -391,6 +414,7 @@ function PublicFormPage({
                 <div className="file-upload-preview">
                   <input
                     className="input-control"
+                  {...fieldAria}
                     type="file"
                     disabled={isSubmitting}
                     multiple={(field.settings_json?.max_file_count || 1) > 1}
@@ -399,9 +423,14 @@ function PublicFormPage({
                 </div>
               ) : null}
 
-              {errors[field.id] ? <small className="public-form-error">{errors[field.id]}</small> : null}
+              {fieldError ? (
+                <small id={errorId} role="alert" className="public-form-error">
+                  {fieldError}
+                </small>
+              ) : null}
             </article>
-          ))}
+            );
+          })}
 
           {submitError ? (
             <p className="public-form-submit-error" role="alert">
