@@ -51,7 +51,6 @@ const PATH_LOGIN_LOGS = "/admin/login-logs";
 const PATH_SCANNER_CLAIMS = "/scanner/claims";
 
 const THEME_STORAGE_KEY = "attendance-theme";
-const ROLE_STORAGE_KEY = "attendance-role";
 
 // super_admin is a strict superset — has access to every route.
 const ROUTE_PERMISSION_GROUP = {
@@ -226,10 +225,9 @@ function App() {
   const [bootstrapError, setBootstrapError] = useState("");
   const [sessionUser, setSessionUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [currentRole, setCurrentRole] = useState(() => {
-    const saved = window.localStorage.getItem(ROLE_STORAGE_KEY);
-    return saved || "admin";
-  });
+  // The signed-in user's role drives nav + route gating. It comes straight
+  // from the session (/auth/me, login) — there is no separate role state.
+  const currentRole = sessionUser?.role_code || "admin";
 
   // Session probe — runs once on mount. /auth/me sets sessionUser if the
   // cookie is valid; otherwise apiAdminService.handleAuthFailure already
@@ -241,9 +239,6 @@ function App() {
         const result = await adminDataAdapter.me();
         if (!cancelled) {
           setSessionUser(result?.user || null);
-          if (result?.user?.role_code) {
-            setCurrentRole(result.user.role_code);
-          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -273,10 +268,6 @@ function App() {
     document.documentElement.setAttribute("data-theme", theme);
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
-
-  useEffect(() => {
-    window.localStorage.setItem(ROLE_STORAGE_KEY, currentRole);
-  }, [currentRole]);
 
   useEffect(() => {
     // Only fetch admin data once we know the session is valid; avoids a
@@ -359,9 +350,6 @@ function App() {
 
   const handleLoginSuccess = (user) => {
     setSessionUser(user || null);
-    if (user?.role_code) {
-      setCurrentRole(user.role_code);
-    }
     navigate(PATH_DASHBOARD, { replace: true });
   };
 
@@ -790,7 +778,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
         projects={projectsWithLabel}
         forms={formsWithProjectName}
         onToggleProjectUsage={handleToggleProjectUsage}
@@ -818,7 +805,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -836,7 +822,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -860,7 +845,6 @@ function App() {
           activePath={route.pathname}
           onNavigate={navigate}
           currentRole={currentRole}
-          onRoleChange={setCurrentRole}
         />
       );
     } else {
@@ -876,7 +860,6 @@ function App() {
           activePath={route.pathname}
           onNavigate={navigate}
           currentRole={currentRole}
-          onRoleChange={setCurrentRole}
         />
       );
     }
@@ -902,7 +885,6 @@ function App() {
           activePath={route.pathname}
           onNavigate={navigate}
           currentRole={currentRole}
-          onRoleChange={setCurrentRole}
         />
       );
     } else {
@@ -939,7 +921,6 @@ function App() {
           activePath={route.pathname}
           onNavigate={navigate}
           currentRole={currentRole}
-          onRoleChange={setCurrentRole}
         />
       );
     }
@@ -974,7 +955,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -994,7 +974,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -1010,7 +989,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -1027,7 +1005,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -1067,7 +1044,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -1085,7 +1061,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -1108,7 +1083,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -1129,7 +1103,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -1194,7 +1167,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -1218,7 +1190,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
@@ -1240,7 +1211,6 @@ function App() {
         activePath={route.pathname}
         onNavigate={navigate}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
       />
     );
   }
