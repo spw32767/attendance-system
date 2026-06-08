@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Send } from "lucide-react";
 import { Button, EmptyState, Spinner } from "../components/ui";
 
@@ -6,6 +6,10 @@ const EMPTY_MESSAGES = {
   not_found: {
     title: "ไม่พบแบบฟอร์ม",
     description: "ลิงก์นี้อาจไม่ถูกต้อง หรือแบบฟอร์มถูกย้าย/ลบแล้ว"
+  },
+  error: {
+    title: "โหลดแบบฟอร์มไม่สำเร็จ",
+    description: "เกิดปัญหาในการเชื่อมต่อ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง"
   },
   closed: {
     title: "แบบฟอร์มปิดใช้งาน",
@@ -51,31 +55,37 @@ function PublicFormPage({
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-
+  const loadForm = useCallback(async () => {
+    setLoading(true);
+    try {
       const result = await onLoadPublicForm(publicPath);
-      setFormStatus(result.status);
-      setFormData(result.form || null);
+      if (!result) {
+        setFormStatus("error");
+        setFormData(null);
+      } else {
+        setFormStatus(result.status);
+        setFormData(result.form || null);
 
-      const nextAnswers = {};
-      (result.form?.fields || []).forEach((field) => {
-        if (field.field_type === "checkboxes") {
-          nextAnswers[field.id] = [];
-          return;
-        }
-
-        nextAnswers[field.id] = "";
-      });
-
-      setAnswers(nextAnswers);
+        const nextAnswers = {};
+        (result.form?.fields || []).forEach((field) => {
+          nextAnswers[field.id] = field.field_type === "checkboxes" ? [] : "";
+        });
+        setAnswers(nextAnswers);
+      }
       setErrors({});
+    } catch {
+      // Network failure / unexpected error — show a retryable error state
+      // instead of a blank screen.
+      setFormStatus("error");
+      setFormData(null);
+    } finally {
       setLoading(false);
-    };
-
-    void load();
+    }
   }, [onLoadPublicForm, publicPath]);
+
+  useEffect(() => {
+    void loadForm();
+  }, [loadForm]);
 
   const orderedFields = useMemo(
     () => [...(formData?.fields || [])].sort((a, b) => a.sort_order - b.sort_order),
@@ -175,9 +185,11 @@ function PublicFormPage({
             title={message.title}
             description={message.description}
             action={
-              <Button variant="ghost" onClick={onGoLogin}>
-                <span>กลับหน้าเข้าสู่ระบบ</span>
-              </Button>
+              formStatus === "error" ? (
+                <Button variant="ghost" onClick={() => loadForm()}>
+                  <span>ลองใหม่อีกครั้ง</span>
+                </Button>
+              ) : null
             }
           />
         </section>
