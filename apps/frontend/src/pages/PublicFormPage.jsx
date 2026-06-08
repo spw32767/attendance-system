@@ -41,6 +41,34 @@ const isEmptyAnswer = (value) => {
   return value === null || value === undefined || value === "";
 };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Format checks for a non-empty answer (required-ness is handled separately).
+// Returns an error message, or null when the value is acceptable.
+const validateFieldFormat = (field, value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (field.field_usage === "email" && !EMAIL_RE.test(trimmed)) {
+    return "กรุณากรอกอีเมลให้ถูกต้อง";
+  }
+  if (field.field_usage === "phone") {
+    const digits = trimmed.replace(/[\s-]/g, "");
+    if (!/^\+?\d{9,15}$/.test(digits)) {
+      return "กรุณากรอกเบอร์โทรให้ถูกต้อง";
+    }
+  }
+  const maxLength = Number(field.settings_json?.max_length) || 0;
+  if (maxLength > 0 && trimmed.length > maxLength) {
+    return `กรอกได้ไม่เกิน ${maxLength} ตัวอักษร`;
+  }
+  return null;
+};
+
 function PublicFormPage({
   publicPath,
   onLoadPublicForm,
@@ -103,12 +131,16 @@ function PublicFormPage({
     const nextErrors = {};
 
     orderedFields.forEach((field) => {
-      if (!field.is_required) {
+      const value = answers[field.id];
+
+      if (field.is_required && isEmptyAnswer(value)) {
+        nextErrors[field.id] = "กรุณากรอกข้อมูลช่องนี้";
         return;
       }
 
-      if (isEmptyAnswer(answers[field.id])) {
-        nextErrors[field.id] = "กรุณากรอกข้อมูลช่องนี้";
+      const formatError = validateFieldFormat(field, value);
+      if (formatError) {
+        nextErrors[field.id] = formatError;
       }
     });
 
