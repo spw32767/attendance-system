@@ -18,6 +18,7 @@ import SubmissionDetailPage from "./pages/SubmissionDetailPage";
 import SubmissionsPage from "./pages/SubmissionsPage";
 import UsersAdminPage from "./pages/UsersAdminPage";
 import { adminDataAdapter } from "./services/adminDataAdapter";
+import { useToast } from "./components/ui";
 
 const ROUTE_ID_LOGIN = "login";
 const ROUTE_ID_DASHBOARD = "dashboard";
@@ -228,6 +229,8 @@ function App() {
   // The signed-in user's role drives nav + route gating. It comes straight
   // from the session (/auth/me, login) — there is no separate role state.
   const currentRole = sessionUser?.role_code || "admin";
+
+  const toast = useToast();
 
   // Session probe — runs once on mount. /auth/me sets sessionUser if the
   // cookie is valid; otherwise apiAdminService.handleAuthFailure already
@@ -643,6 +646,7 @@ function App() {
       adminDataAdapter.listEmailTemplates()
     ]);
     setEmailTemplates(nextEmailTemplates);
+    toast.success("บันทึกเทมเพลตแล้ว");
   };
 
   const handleCreateEmailTemplate = async (payload) => {
@@ -651,6 +655,7 @@ function App() {
       adminDataAdapter.listEmailTemplates()
     ]);
     setEmailTemplates(nextEmailTemplates);
+    toast.success("สร้างเทมเพลตอีเมลแล้ว");
     return result;
   };
 
@@ -716,9 +721,14 @@ function App() {
   };
 
   const handleToggleFormUsage = async (formId, isEnabled) => {
-    await adminDataAdapter.setFormUsage(formId, isEnabled);
-    const [nextForms] = await Promise.all([adminDataAdapter.listForms()]);
-    setForms(nextForms);
+    try {
+      await adminDataAdapter.setFormUsage(formId, isEnabled);
+      const [nextForms] = await Promise.all([adminDataAdapter.listForms()]);
+      setForms(nextForms);
+      toast.success(isEnabled ? "เผยแพร่ฟอร์มแล้ว" : "ปิดรับคำตอบแล้ว");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "อัปเดตสถานะฟอร์มไม่สำเร็จ");
+    }
   };
 
   const handleLoadPublicForm = async (publicPath) =>

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
-import { Button, PageHead } from "../components/ui";
+import { Button, PageHead, useToast } from "../components/ui";
 import SubmissionsFilters from "./submissions/SubmissionsFilters";
 import SubmissionsTable from "./submissions/SubmissionsTable";
 import ImportSubmissionsModal from "./submissions/ImportSubmissionsModal";
@@ -29,11 +29,11 @@ function SubmissionsPage({
   onRoleChange
 }) {
   const [searchText, setSearchText] = useState("");
-  const [pageNotice, setPageNotice] = useState(null);
   const [quickCheckInId, setQuickCheckInId] = useState(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const toast = useToast();
 
   const filteredRows = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
@@ -71,14 +71,6 @@ function SubmissionsPage({
     [submissions]
   );
 
-  useEffect(() => {
-    if (!pageNotice) {
-      return undefined;
-    }
-    const timer = window.setTimeout(() => setPageNotice(null), 3500);
-    return () => window.clearTimeout(timer);
-  }, [pageNotice]);
-
   const handleQuickCheckIn = async (submissionId) => {
     setQuickCheckInId(submissionId);
     try {
@@ -86,12 +78,11 @@ function SubmissionsPage({
         attendance_status: "present",
         check_in_at: new Date().toISOString()
       });
-      setPageNotice({ type: "success", text: "บันทึกเช็กอินเรียบร้อยแล้ว" });
+      toast.success("บันทึกเช็กอินเรียบร้อยแล้ว");
     } catch (error) {
-      setPageNotice({
-        type: "error",
-        text: error instanceof Error ? error.message : "ไม่สามารถอัปเดตสถานะเช็กอินได้"
-      });
+      toast.error(
+        error instanceof Error ? error.message : "ไม่สามารถอัปเดตสถานะเช็กอินได้"
+      );
     } finally {
       setQuickCheckInId(null);
     }
@@ -99,14 +90,13 @@ function SubmissionsPage({
 
   const handleImportSuccess = (result) => {
     setImportResult(result || null);
-    setPageNotice({
-      type: "success",
-      text: `นำเข้ารายชื่อสำเร็จ เพิ่มใหม่ ${result?.summary?.inserted || 0} รายการ ข้ามซ้ำ ${result?.summary?.skipped_duplicates || 0} รายการ`
-    });
+    toast.success(
+      `นำเข้ารายชื่อสำเร็จ เพิ่มใหม่ ${result?.summary?.inserted || 0} รายการ ข้ามซ้ำ ${result?.summary?.skipped_duplicates || 0} รายการ`
+    );
   };
 
   const handleNoticeError = (text) => {
-    setPageNotice({ type: "error", text });
+    toast.error(text);
   };
 
   return (
@@ -137,12 +127,6 @@ function SubmissionsPage({
           </>
         }
       />
-
-      {pageNotice ? (
-        <p className={`notice-banner${pageNotice.type === "error" ? " notice-banner-error" : ""}`}>
-          {pageNotice.text}
-        </p>
-      ) : null}
 
       <section className="templates-card">
         {importResult?.summary ? (
@@ -216,7 +200,7 @@ function SubmissionsPage({
         forms={forms}
         defaultFormId={filterFormId}
         onExport={onExportSubmissionsExcel}
-        onSuccess={() => setPageNotice({ type: "success", text: "Export ข้อมูลสำเร็จ" })}
+        onSuccess={() => toast.success("Export ข้อมูลสำเร็จ")}
         onError={handleNoticeError}
       />
     </AdminLayout>
