@@ -1,5 +1,12 @@
 import { useState } from "react";
+import { CheckCircle2, AlertTriangle, XCircle, ScanLine } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
+
+const RESULT_CONFIG = {
+  received: { tone: "success", label: "รับของสำเร็จ", Icon: CheckCircle2 },
+  already_used: { tone: "warning", label: "โทเคนนี้ถูกใช้แล้ว", Icon: AlertTriangle },
+  not_found: { tone: "danger", label: "ไม่พบโทเคน", Icon: XCircle }
+};
 
 function ScannerClaimsPage({
   scanResult,
@@ -14,6 +21,24 @@ function ScannerClaimsPage({
   onRoleChange
 }) {
   const [token, setToken] = useState("");
+
+  const handleScan = () => {
+    const trimmed = token.trim();
+    if (!trimmed) {
+      return;
+    }
+    onScanToken(trimmed);
+    // Clear so the next QR can be scanned right away.
+    setToken("");
+  };
+
+  const result = scanResult
+    ? RESULT_CONFIG[scanResult.status] || {
+        tone: "neutral",
+        label: scanResult.status,
+        Icon: ScanLine
+      }
+    : null;
 
   return (
     <AdminLayout
@@ -36,35 +61,35 @@ function ScannerClaimsPage({
         </div>
       </section>
 
-      <section className="module-placeholder-card">
-        <div className="inline-action-row" style={{ width: "100%" }}>
+      <section className="module-placeholder-card scanner-card">
+        <form
+          className="scanner-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleScan();
+          }}
+        >
           <input
-            className="input-control"
-            style={{ minWidth: 320 }}
+            className="input-control scanner-input"
             value={token}
-            placeholder="วางโทเคนหรือกรอกจาก QR"
+            placeholder="วางโทเคนหรือสแกน QR"
+            autoComplete="off"
+            autoFocus
             onChange={(event) => setToken(event.target.value)}
           />
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => onScanToken(token)}
-            disabled={!token.trim()}
-          >
-            ตรวจสอบโทเคน
+          <button className="primary-button scanner-submit" type="submit" disabled={!token.trim()}>
+            <ScanLine size={16} aria-hidden="true" />
+            <span>ตรวจสอบโทเคน</span>
           </button>
-        </div>
+        </form>
 
-        {scanResult ? (
-          <div style={{ marginTop: 12 }}>
-            <p>
-              ผลลัพธ์: <strong>{scanResult.status}</strong>
-            </p>
-            <p>{scanResult.message}</p>
+        {result ? (
+          <div className={`scanner-result scanner-result-${result.tone}`} role="status" aria-live="polite">
+            <result.Icon size={40} aria-hidden="true" className="scanner-result-icon" />
+            <p className="scanner-result-status">{result.label}</p>
+            <p className="scanner-result-message">{scanResult.message}</p>
             {scanResult.claim ? (
-              <p>
-                Claim: {scanResult.claim.claim_token} ({scanResult.claim.receive_status})
-              </p>
+              <p className="scanner-result-meta">โทเคน: {scanResult.claim.claim_token}</p>
             ) : null}
           </div>
         ) : null}

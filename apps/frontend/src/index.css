@@ -3953,3 +3953,86 @@ button:disabled {
   }
 }
 
+/* ----- scanner (mobile-first; used on phones at the handout table) ----- */
+.scanner-form {
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.scanner-input {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-size: 1rem;
+}
+
+.scanner-submit {
+  flex: 0 0 auto;
+}
+
+.scanner-result {
+  margin-top: var(--space-4);
+  padding: var(--space-5) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.scanner-result-status {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.scanner-result-message {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.scanner-result-meta {
+  margin: 4px 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: "Courier New", monospace;
+  word-break: break-all;
+}
+
+.scanner-result-success {
+  border-color: #16a34a;
+  background: color-mix(in srgb, #16a34a 12%, var(--surface-base));
+}
+.scanner-result-success .scanner-result-status,
+.scanner-result-success .scanner-result-icon {
+  color: #16a34a;
+}
+
+.scanner-result-warning {
+  border-color: #d97706;
+  background: color-mix(in srgb, #d97706 12%, var(--surface-base));
+}
+.scanner-result-warning .scanner-result-status,
+.scanner-result-warning .scanner-result-icon {
+  color: #d97706;
+}
+
+.scanner-result-danger {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+.scanner-result-danger .scanner-result-status,
+.scanner-result-danger .scanner-result-icon {
+  color: var(--danger);
+}
+
+@media (max-width: 560px) {
+  .scanner-submit {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+
