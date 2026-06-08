@@ -10,7 +10,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
-  Check
+  Check,
+  Globe,
+  Ban
 } from "lucide-react";
 import { Button, PageHead } from "../components/ui";
 import AdminLayout from "../components/AdminLayout";
@@ -66,6 +68,7 @@ function AttendanceTemplatesPage({
   onOpenSubmissions,
   onOpenItems,
   onOpenEmail,
+  onToggleFormUsage,
   onBackToProjects,
   onLogout,
   theme,
@@ -266,7 +269,7 @@ function AttendanceTemplatesPage({
                             </div>
                             {template.status !== "published" ? (
                               <small className="template-url-hint">
-                                ยังไม่เผยแพร่ — ลิงก์จะใช้ได้เมื่อเปลี่ยนสถานะเป็นเผยแพร่
+                                ฟอร์มยังไม่เปิดรับคำตอบ — กด "เผยแพร่" ก่อนเพื่อให้ลิงก์ใช้งานได้
                               </small>
                             ) : null}
                           </div>
@@ -304,9 +307,28 @@ function AttendanceTemplatesPage({
                             <ClipboardList size={13} strokeWidth={2} aria-hidden="true" />
                             <span>คำตอบ</span>
                           </Button>
+                          {template.status !== "published" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onToggleFormUsage?.(template.form_id, true)}
+                            >
+                              <Globe size={13} strokeWidth={2} aria-hidden="true" />
+                              <span>เผยแพร่</span>
+                            </Button>
+                          ) : null}
                           <TableActionMenu
                             label="การจัดการฟอร์มเพิ่มเติม"
                             items={[
+                              ...(template.status === "published"
+                                ? [
+                                    {
+                                      label: "ปิดรับคำตอบ",
+                                      icon: Ban,
+                                      onClick: () => onToggleFormUsage?.(template.form_id, false)
+                                    }
+                                  ]
+                                : []),
                               {
                                 label: "ของ/สิทธิ์",
                                 icon: Package,

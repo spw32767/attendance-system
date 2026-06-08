@@ -913,6 +913,7 @@ function App() {
           onOpenEmail={(templateId) =>
             navigate(`${PATH_EMAIL}?project=${project.project_id}&form=${templateId}`)
           }
+          onToggleFormUsage={handleToggleFormUsage}
           onBackToProjects={() => navigate(PATH_PROJECTS)}
           onLogout={handleLogout}
           theme={theme}
