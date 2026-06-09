@@ -173,7 +173,7 @@ function PublicFormPage({
       }
 
       if (onNavigateSuccess) {
-        onNavigateSuccess(result);
+        onNavigateSuccess(result, Boolean(formData?.allow_multiple_submissions));
       }
     } catch (err) {
       // 4xx (validation_error / duplicate_value / already_submitted) lands

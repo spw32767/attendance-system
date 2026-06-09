@@ -1,6 +1,6 @@
 import { Button } from "../../components/ui";
 import { FORM_STATUSES, FORM_TYPES } from "../../constants/formBuilder";
-import { toSlug } from "./helpers";
+import { toSlugOrFallback } from "./helpers";
 
 function DetailsTab({ draft, availableProjects, onChange }) {
   return (
@@ -56,7 +56,7 @@ function DetailsTab({ draft, availableProjects, onChange }) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onChange("public_path", toSlug(draft.form_name || ""))}
+              onClick={() => onChange("public_path", toSlugOrFallback(draft.form_name || ""))}
             >
               <span>สร้างอัตโนมัติ</span>
             </Button>

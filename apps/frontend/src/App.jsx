@@ -1220,11 +1220,14 @@ function App() {
         publicPath={route.params.publicPath}
         onLoadPublicForm={handleLoadPublicForm}
         onSubmitPublicForm={handleSubmitPublicForm}
-        onNavigateSuccess={(result) => {
+        onNavigateSuccess={(result, allowMultiple) => {
           const query = new URLSearchParams();
           query.set("code", result.submissionCode || "");
           query.set("title", result.successTitle || "");
           query.set("message", result.successMessage || "");
+          if (allowMultiple) {
+            query.set("multi", "1");
+          }
           navigate(`/forms/${route.params.publicPath}/success?${query.toString()}`);
         }}
         onGoLogin={() => navigate(PATH_LOGIN)}
@@ -1239,8 +1242,8 @@ function App() {
         submissionCode={routeSearchParams.get("code")}
         title={routeSearchParams.get("title")}
         message={routeSearchParams.get("message")}
+        allowMultiple={routeSearchParams.get("multi") === "1"}
         onFillAgain={() => navigate(`/forms/${route.params.publicPath}`)}
-        onGoLogin={() => navigate(PATH_LOGIN)}
       />
     );
   }

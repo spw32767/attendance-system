@@ -15,6 +15,12 @@ export const toSlug = (value) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
 
+// toSlug strips non-ASCII, so a Thai-only name yields "". Fall back to a
+// short random slug so the "auto-generate" button always produces a usable
+// (and editable) value instead of looking like it did nothing.
+export const toSlugOrFallback = (value) =>
+  toSlug(value) || `form-${Math.random().toString(36).slice(2, 8)}`;
+
 export const toOptionValue = (value, index) => {
   const cleaned = String(value || "")
     .trim()

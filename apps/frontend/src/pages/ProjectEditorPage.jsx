@@ -142,7 +142,13 @@ function ProjectEditorPage({
               <button
                 className="ghost-button"
                 type="button"
-                onClick={() => updateValue("project_code", toProjectCode(draft.project_name))}
+                onClick={() =>
+                  updateValue(
+                    "project_code",
+                    toProjectCode(draft.project_name) ||
+                      `PROJECT_${Math.random().toString(36).slice(2, 7).toUpperCase()}`
+                  )
+                }
               >
                 สร้างอัตโนมัติ
               </button>
@@ -186,14 +192,22 @@ function ProjectEditorPage({
             />
           </label>
 
-          <label className="checkbox-row full-width">
-            <input
-              type="checkbox"
-              checked={draft.is_active}
-              onChange={(event) => updateValue("is_active", event.target.checked)}
-            />
-            <span>เปิดใช้งานโครงการนี้</span>
-          </label>
+          <div className="full-width setting-toggle-row">
+            <div className="setting-toggle-text">
+              <span className="setting-toggle-title">เปิดใช้งานโครงการนี้</span>
+              <small>ปิดไว้ได้ถ้ายังไม่ต้องการให้โครงการนี้ใช้งาน</small>
+            </div>
+            <label className="toggle-switch-label">
+              <input
+                type="checkbox"
+                checked={draft.is_active}
+                onChange={(event) => updateValue("is_active", event.target.checked)}
+              />
+              <span className="toggle-switch-track" data-off-label="ปิด" data-on-label="เปิด">
+                <span className="toggle-switch-thumb" />
+              </span>
+            </label>
+          </div>
         </form>
       </section>
     </AdminLayout>

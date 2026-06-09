@@ -1811,6 +1811,7 @@ export const getPublicForm = async (publicPath: string) => {
       form_description: mappedForm.form_description,
       success_title: mappedForm.success_title,
       success_message: mappedForm.success_message,
+      allow_multiple_submissions: mappedForm.allow_multiple_submissions,
       fields
     }
   };
