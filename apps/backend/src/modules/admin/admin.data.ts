@@ -1244,7 +1244,13 @@ export const listSubmissions = async () => {
         s.source_type,
         s.notes,
         f.form_name,
-        p.project_name
+        p.project_name,
+        EXISTS (
+          SELECT 1 FROM email_send_logs el
+          WHERE el.submission_id = s.submission_id
+            AND el.notification_code = 'checkin_confirmation'
+            AND el.deleted_at IS NULL
+        ) AS checkin_email_sent
       FROM entry_submissions s
       INNER JOIN form_forms f ON f.form_id = s.form_id
       INNER JOIN proj_projects p ON p.project_id = f.project_id
@@ -1283,6 +1289,7 @@ export const listSubmissions = async () => {
       check_out_at: toDateTime(row.check_out_at),
       note: row.notes || "",
       source_type: row.source_type || "public_form",
+      checkin_email_sent: toBoolean(row.checkin_email_sent),
       form_name: row.form_name || "-",
       project_name: row.project_name || "-"
     };
@@ -1399,25 +1406,18 @@ export const getSubmissionDetail = async (submissionId: number) => {
 };
 
 export const updateSubmission = async (submissionId: number, payload: AnyPayload) => {
-  let pendingEmail: PendingEmailDispatch | null = null;
-
   await withTransaction(async (connection) => {
     const rows = await queryRows<AnyRow>(
       `
         SELECT
           s.submission_id,
-          s.form_id,
-          s.submission_code,
           s.attendance_status,
           s.check_in_at,
           s.check_out_at,
-          s.notes,
-          f.form_name
+          s.notes
         FROM entry_submissions s
-        INNER JOIN form_forms f ON f.form_id = s.form_id
         WHERE s.submission_id = ?
           AND s.deleted_at IS NULL
-          AND f.deleted_at IS NULL
         LIMIT 1
       `,
       [submissionId],
@@ -1458,11 +1458,39 @@ export const updateSubmission = async (submissionId: number, payload: AnyPayload
       connection
     );
 
-    const transitionedToPresent =
-      String(current.attendance_status || "submitted") !== "present" &&
-      nextAttendanceStatus === "present";
+  });
+};
 
-    if (!transitionedToPresent) {
+/**
+ * Build + send the check-in (souvenir QR) email for a submission on demand.
+ * Decoupled from check-in itself so an admin can mark someone present
+ * without emailing them, then send the email explicitly when they want.
+ * Idempotent: a second call is a no-op if a checkin_confirmation log exists.
+ */
+export const queueCheckinEmail = async (
+  submissionId: number
+): Promise<{ status: "sent" | "already_sent" | "not_found" }> => {
+  let pendingEmail: PendingEmailDispatch | null = null;
+  let outcome: "sent" | "already_sent" | "not_found" = "not_found";
+
+  await withTransaction(async (connection) => {
+    const rows = await queryRows<AnyRow>(
+      `
+        SELECT s.submission_id, s.form_id, s.submission_code, f.form_name
+        FROM entry_submissions s
+        INNER JOIN form_forms f ON f.form_id = s.form_id
+        WHERE s.submission_id = ?
+          AND s.deleted_at IS NULL
+          AND f.deleted_at IS NULL
+        LIMIT 1
+      `,
+      [submissionId],
+      connection
+    );
+
+    const current = rows[0];
+    if (!current) {
+      outcome = "not_found";
       return;
     }
 
@@ -1480,6 +1508,7 @@ export const updateSubmission = async (submissionId: number, payload: AnyPayload
     );
 
     if (existingCheckInEmails.length > 0) {
+      outcome = "already_sent";
       return;
     }
 
@@ -1507,6 +1536,11 @@ export const updateSubmission = async (submissionId: number, payload: AnyPayload
       }))
       .filter((row) => row.token);
 
+    const recipient =
+      identity.respondentEmail && identity.respondentEmail !== "-"
+        ? identity.respondentEmail
+        : "unknown@example.com";
+
     const emailSubject = `ยืนยันเช็กอิน ${current.form_name || "-"} - ${current.submission_code || ""}`.slice(0, 255);
     const emailBody =
       `<p style="margin:0 0 14px;font-size:16px;">สวัสดีคุณ <strong>${identity.respondentName || "ผู้เข้าร่วม"}</strong></p>` +
@@ -1526,33 +1560,206 @@ export const updateSubmission = async (submissionId: number, payload: AnyPayload
           send_status
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
-      [
-        null,
-        current.form_id,
-        submissionId,
-        identity.respondentEmail && identity.respondentEmail !== "-"
-          ? identity.respondentEmail
-          : "unknown@example.com",
-        "checkin_confirmation",
-        emailSubject,
-        "queued"
-      ],
+      [null, current.form_id, submissionId, recipient, "checkin_confirmation", emailSubject, "queued"],
       connection
     );
 
     pendingEmail = {
       emailLogId: Number(insertResult.insertId),
-      recipientEmail:
-        identity.respondentEmail && identity.respondentEmail !== "-"
-          ? identity.respondentEmail
-          : "unknown@example.com",
+      recipientEmail: recipient,
       subject: emailSubject,
       html: emailBody,
       qrTokens: claimQrTokens
     };
+    outcome = "sent";
   });
 
   await dispatchPendingEmail(pendingEmail);
+  return { status: outcome };
+};
+
+/**
+ * Create a submission from the admin side (pre-registered / VIP roster).
+ * Reuses the public-submit pipeline but as source 'manual', not present, and
+ * never emails (queueSubmissionEmail: false). Validation is skipped so a
+ * partial roster row (name + email only) is accepted.
+ */
+export const createManualSubmission = async (
+  formId: number,
+  answers: AnyPayload
+): Promise<
+  { ok: false; reason: string } | { ok: true; submissionId: number; submissionCode: string }
+> => {
+  const result = (await withTransaction(async (connection) => {
+    const formRow = await getFormRowForImport(formId, connection);
+    if (!formRow) {
+      return { ok: false, status: "form_not_found" } as AnyPayload;
+    }
+    return (await submitFormForRow(
+      formRow,
+      { answers },
+      {
+        sourceType: "manual",
+        note: "เพิ่มในระบบ",
+        markPresent: false,
+        enforceFormOpen: false,
+        queueSubmissionEmail: false,
+        skipValidation: true
+      },
+      connection
+    )) as AnyPayload;
+  })) as AnyPayload;
+
+  if (!result.ok) {
+    return { ok: false, reason: String(result.status || "failed") };
+  }
+  return {
+    ok: true,
+    submissionId: Number(result.submissionId),
+    submissionCode: String(result.submissionCode || "")
+  };
+};
+
+/**
+ * Rewrite the answers of a pre-registered submission (import_excel / manual).
+ * Self-filled (public_form) submissions are not editable. File-upload fields
+ * are left as-is; everything else is soft-deleted and re-inserted.
+ */
+export const updateSubmissionAnswers = async (
+  submissionId: number,
+  answers: AnyPayload
+): Promise<{ ok: false; reason: string } | { ok: true }> =>
+  withTransaction(async (connection) => {
+    const subRows = await queryRows<AnyRow>(
+      `SELECT submission_id, form_id, source_type
+         FROM entry_submissions
+        WHERE submission_id = ? AND deleted_at IS NULL LIMIT 1`,
+      [submissionId],
+      connection
+    );
+    const sub = subRows[0];
+    if (!sub) {
+      return { ok: false, reason: "not_found" };
+    }
+    if (sub.source_type !== "import_excel" && sub.source_type !== "manual") {
+      return { ok: false, reason: "not_editable" };
+    }
+
+    const fields = await loadDraftFields(Number(sub.form_id), connection);
+    const optionsByFieldId = fields.reduce<Record<string, Record<string, AnyPayload>>>(
+      (lookup, field) => {
+        lookup[String(field.id)] = (field.options || []).reduce<Record<string, AnyPayload>>(
+          (optionLookup, option) => {
+            optionLookup[String(option.option_value || option.option_label)] = option;
+            optionLookup[String(option.option_label)] = option;
+            return optionLookup;
+          },
+          {}
+        );
+        return lookup;
+      },
+      {}
+    );
+
+    const editableFields = fields.filter((field) => field.field_type !== "file_upload");
+    const editableIds = editableFields.map((field) => Number(field.id));
+
+    if (editableIds.length > 0) {
+      const placeholders = editableIds.map(() => "?").join(", ");
+      // Hard delete: a UNIQUE (submission_id, field_id) ignores deleted_at, so
+      // re-inserting after a soft delete would collide. Remove option rows
+      // first (FK), then the answers themselves. File-upload fields are
+      // excluded above, so no entry_submission_files reference these answers.
+      await execute(
+        `DELETE ao FROM entry_submission_answer_options ao
+           INNER JOIN entry_submission_answers a ON a.answer_id = ao.answer_id
+          WHERE a.submission_id = ?
+            AND a.field_id IN (${placeholders})`,
+        [submissionId, ...editableIds],
+        connection
+      );
+      await execute(
+        `DELETE FROM entry_submission_answers
+          WHERE submission_id = ?
+            AND field_id IN (${placeholders})`,
+        [submissionId, ...editableIds],
+        connection
+      );
+    }
+
+    for (const field of editableFields) {
+      const rawValue = answers[field.id];
+      if (isAnswerEmpty(field.field_type, rawValue)) {
+        continue;
+      }
+      const resolvedValue = resolveAnswerValue(
+        field.field_type,
+        rawValue,
+        optionsByFieldId[String(field.id)] || {}
+      );
+
+      const answerInsert = await execute(
+        `INSERT INTO entry_submission_answers (
+           submission_id, field_id, answer_text, answer_number, answer_date, answer_time, selected_option_id
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          submissionId,
+          Number(field.id),
+          field.field_type === "short_text" || field.field_type === "long_text"
+            ? (resolvedValue as string) || null
+            : null,
+          field.field_type === "rating" ? resolvedValue || null : null,
+          field.field_type === "date" ? (resolvedValue as string) || null : null,
+          field.field_type === "time" ? (resolvedValue as string) || null : null,
+          field.field_type === "multiple_choice" || field.field_type === "dropdown"
+            ? Number((resolvedValue as AnyPayload | null)?.id || 0) || null
+            : null
+        ],
+        connection
+      );
+      const answerId = Number(answerInsert.insertId);
+
+      if (field.field_type === "checkboxes") {
+        for (const checkboxValue of resolvedValue as string[]) {
+          const option = optionsByFieldId[String(field.id)]?.[checkboxValue];
+          if (!option?.id) {
+            continue;
+          }
+          await execute(
+            `INSERT INTO entry_submission_answer_options (answer_id, option_id) VALUES (?, ?)`,
+            [answerId, Number(option.id)],
+            connection
+          );
+        }
+      }
+    }
+
+    return { ok: true };
+  });
+
+/**
+ * Soft-delete a pre-registered submission (import_excel / manual only).
+ */
+export const deleteSubmission = async (
+  submissionId: number
+): Promise<{ ok: false; reason: string } | { ok: true }> => {
+  const rows = await queryRows<AnyRow>(
+    `SELECT submission_id, source_type FROM entry_submissions
+      WHERE submission_id = ? AND deleted_at IS NULL LIMIT 1`,
+    [submissionId]
+  );
+  const sub = rows[0];
+  if (!sub) {
+    return { ok: false, reason: "not_found" };
+  }
+  if (sub.source_type !== "import_excel" && sub.source_type !== "manual") {
+    return { ok: false, reason: "not_deletable" };
+  }
+  await execute(
+    `UPDATE entry_submissions SET deleted_at = CURRENT_TIMESTAMP WHERE submission_id = ?`,
+    [submissionId]
+  );
+  return { ok: true };
 };
 
 export const getPublicForm = async (publicPath: string) => {
@@ -1618,7 +1825,7 @@ const buildSubmissionCode = async (formId: number, connection: PoolConnection) =
 };
 
 type SubmitFormOptions = {
-  sourceType: "public_form" | "import_excel";
+  sourceType: "public_form" | "import_excel" | "manual";
   note?: string | null;
   markPresent?: boolean;
   enforceFormOpen?: boolean;

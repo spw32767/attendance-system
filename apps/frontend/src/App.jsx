@@ -16,6 +16,7 @@ import ProjectsPage from "./pages/ProjectsPage";
 import ScannerClaimsPage from "./pages/ScannerClaimsPage";
 import SubmissionDetailPage from "./pages/SubmissionDetailPage";
 import SubmissionsPage from "./pages/SubmissionsPage";
+import PreRegisterPage from "./pages/PreRegisterPage";
 import UsersAdminPage from "./pages/UsersAdminPage";
 import { adminDataAdapter } from "./services/adminDataAdapter";
 import { useToast } from "./components/ui";
@@ -28,6 +29,7 @@ const ROUTE_ID_PROJECT_EDIT = "project-edit";
 const ROUTE_ID_PROJECT_FORMS = "project-forms";
 const ROUTE_ID_FORM_EDITOR = "form-editor";
 const ROUTE_ID_SUBMISSIONS = "submissions";
+const ROUTE_ID_PRE_REGISTER = "pre-register";
 const ROUTE_ID_SUBMISSION_DETAIL = "submission-detail";
 const ROUTE_ID_ITEMS = "items";
 const ROUTE_ID_CLAIMS = "claims";
@@ -44,6 +46,7 @@ const PATH_PROJECTS = "/admin/projects";
 const PATH_PROJECT_CREATE = "/admin/projects/create";
 const PATH_FORM_EDITOR = "/admin/forms/editor";
 const PATH_SUBMISSIONS = "/admin/submissions";
+const PATH_PRE_REGISTER = "/admin/pre-register";
 const PATH_ITEMS = "/admin/items";
 const PATH_CLAIMS = "/admin/claims";
 const PATH_EMAIL = "/admin/email";
@@ -63,6 +66,7 @@ const ROUTE_PERMISSION_GROUP = {
   "project-forms": ["super_admin", "admin", "staff"],
   "form-editor": ["super_admin", "admin", "staff"],
   submissions: ["super_admin", "admin", "staff"],
+  "pre-register": ["super_admin", "admin", "staff"],
   "submission-detail": ["super_admin", "admin", "staff"],
   items: ["super_admin", "admin", "staff"],
   claims: ["super_admin", "admin", "staff", "scanner"],
@@ -81,6 +85,7 @@ const STATIC_ROUTES = {
   [PATH_PROJECT_CREATE]: ROUTE_ID_PROJECT_CREATE,
   [PATH_FORM_EDITOR]: ROUTE_ID_FORM_EDITOR,
   [PATH_SUBMISSIONS]: ROUTE_ID_SUBMISSIONS,
+  [PATH_PRE_REGISTER]: ROUTE_ID_PRE_REGISTER,
   [PATH_ITEMS]: ROUTE_ID_ITEMS,
   [PATH_CLAIMS]: ROUTE_ID_CLAIMS,
   [PATH_EMAIL]: ROUTE_ID_EMAIL,
@@ -407,6 +412,10 @@ function App() {
       return "submissions";
     }
 
+    if (route.id === ROUTE_ID_PRE_REGISTER) {
+      return "pre-register";
+    }
+
     if (route.id === ROUTE_ID_ITEMS) {
       return "items";
     }
@@ -467,6 +476,14 @@ function App() {
         icon: "submissions",
         group: "การปฏิบัติการ",
         isActive: activeNavKey === "submissions"
+      },
+      {
+        routeKey: ROUTE_ID_PRE_REGISTER,
+        path: PATH_PRE_REGISTER,
+        label: "รายชื่อล่วงหน้า",
+        icon: "preregister",
+        group: "การปฏิบัติการ",
+        isActive: activeNavKey === "pre-register"
       },
       {
         routeKey: ROUTE_ID_ITEMS,
@@ -712,6 +729,44 @@ function App() {
 
   const handleExportSubmissionsExcel = async (formId, filters = {}) => {
     await adminDataAdapter.exportFormSubmissionsExcel(formId, filters);
+  };
+
+  const handleDownloadImportTemplate = async (formId) => {
+    await adminDataAdapter.downloadFormImportTemplate(formId);
+  };
+
+  const handleSendCheckinEmail = async (submissionId) => {
+    const result = await adminDataAdapter.sendCheckinEmail(submissionId);
+    const nextSubmissions = await adminDataAdapter.listSubmissions();
+    setSubmissions(nextSubmissions);
+    return result;
+  };
+
+  const handleCreateEntry = async (formId, answers) => {
+    const result = await adminDataAdapter.createManualSubmission(formId, answers);
+    const [nextSubmissions, nextClaims] = await Promise.all([
+      adminDataAdapter.listSubmissions(),
+      adminDataAdapter.listClaims()
+    ]);
+    setSubmissions(nextSubmissions);
+    setClaims(nextClaims);
+    return result;
+  };
+
+  const handleUpdateEntry = async (submissionId, answers) => {
+    await adminDataAdapter.updateSubmissionAnswers(submissionId, answers);
+    const nextSubmissions = await adminDataAdapter.listSubmissions();
+    setSubmissions(nextSubmissions);
+  };
+
+  const handleDeleteEntry = async (submissionId) => {
+    await adminDataAdapter.deleteSubmission(submissionId);
+    const [nextSubmissions, nextClaims] = await Promise.all([
+      adminDataAdapter.listSubmissions(),
+      adminDataAdapter.listClaims()
+    ]);
+    setSubmissions(nextSubmissions);
+    setClaims(nextClaims);
   };
 
   const handleToggleProjectUsage = async (projectId, isActive) => {
@@ -1045,8 +1100,49 @@ function App() {
         }}
         onOpenSubmission={(submissionId) => navigate(`/admin/submissions/${submissionId}`)}
         onUpdateSubmission={handleUpdateSubmission}
+        onSendCheckinEmail={handleSendCheckinEmail}
+        onExportSubmissionsExcel={handleExportSubmissionsExcel}
+        onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        navItems={adminNavItems}
+        activePath={route.pathname}
+        onNavigate={navigate}
+        currentRole={currentRole}
+      />
+    );
+  }
+
+  if (route.id === ROUTE_ID_PRE_REGISTER) {
+    const filterProjectId = Number(routeSearchParams.get("project"));
+    const filterFormId = routeSearchParams.get("form");
+
+    currentPage = (
+      <PreRegisterPage
+        submissions={submissions}
+        projects={projectsWithLabel}
+        forms={formsWithProjectName}
+        filterProjectId={filterProjectId || null}
+        filterFormId={filterFormId || null}
+        onChangeFilter={(projectId, formId) => {
+          const query = new URLSearchParams();
+          if (projectId) {
+            query.set("project", String(projectId));
+          }
+          if (formId) {
+            query.set("form", String(formId));
+          }
+          const queryString = query.toString();
+          navigate(queryString ? `${PATH_PRE_REGISTER}?${queryString}` : PATH_PRE_REGISTER);
+        }}
+        onUpdateSubmission={handleUpdateSubmission}
+        onSendCheckinEmail={handleSendCheckinEmail}
+        onCreateEntry={handleCreateEntry}
+        onUpdateEntry={handleUpdateEntry}
+        onDeleteEntry={handleDeleteEntry}
         onPreviewImportSubmissionsExcel={handlePreviewImportSubmissionsExcel}
         onImportSubmissionsExcel={handleImportSubmissionsExcel}
+        onDownloadImportTemplate={handleDownloadImportTemplate}
         onExportSubmissionsExcel={handleExportSubmissionsExcel}
         onLogout={handleLogout}
         theme={theme}

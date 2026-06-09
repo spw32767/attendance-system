@@ -213,6 +213,30 @@ export const apiAdminService = {
       body: payload
     }),
 
+  createManualSubmission: (formId, answers) =>
+    request(`/admin/forms/${formId}/submissions`, {
+      method: "POST",
+      body: { answers }
+    }),
+
+  updateSubmissionAnswers: (submissionId, answers) =>
+    request(`/admin/submissions/${submissionId}/answers`, {
+      method: "PATCH",
+      body: { answers }
+    }),
+
+  deleteSubmission: (submissionId) =>
+    request(`/admin/submissions/${submissionId}`, {
+      method: "DELETE",
+      body: {}
+    }),
+
+  sendCheckinEmail: (submissionId) =>
+    request(`/admin/submissions/${submissionId}/checkin-email`, {
+      method: "POST",
+      body: {}
+    }),
+
   importFormSubmissionsExcel: (formId, file, options = {}) => {
     const formData = new FormData();
     formData.append("file", file);

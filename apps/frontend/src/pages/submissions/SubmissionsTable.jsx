@@ -1,14 +1,24 @@
-import { CheckCircle2, ExternalLink } from "lucide-react";
+import { CheckCircle2, ExternalLink, Mail, MailCheck, Pencil, Trash2 } from "lucide-react";
 import { Button } from "../../components/ui";
 import { STATUS_META, SOURCE_TYPE_LABELS } from "./constants";
+
+const CHECKIN_ROLES = ["super_admin", "admin", "staff"];
 
 function SubmissionsTable({
   rows,
   currentRole,
+  mode = "responses",
   quickCheckInId,
   onQuickCheckIn,
-  onOpenSubmission
+  sendingEmailId,
+  onSendEmail,
+  onOpenSubmission,
+  onEditEntry,
+  onDeleteEntry
 }) {
+  const canCheckIn = CHECKIN_ROLES.includes(currentRole);
+  const isPreRegister = mode === "preregister";
+
   return (
     <div className="templates-table-wrap">
       <table className="templates-table submissions-table">
@@ -27,14 +37,16 @@ function SubmissionsTable({
           {rows.length === 0 ? (
             <tr>
               <td className="empty-row" colSpan={7}>
-                ไม่พบข้อมูลคำตอบ
+                {isPreRegister
+                  ? "ยังไม่มีรายชื่อล่วงหน้า — กด “+ เพิ่มรายชื่อ” หรือนำเข้าจาก Excel"
+                  : "ยังไม่มีคำตอบที่ผู้เข้าร่วมกรอกเอง"}
               </td>
             </tr>
           ) : (
             rows.map((row) => {
               const statusMeta = STATUS_META[row.attendance_status] || STATUS_META.submitted;
-              const canQuickCheckIn =
-                ["super_admin", "admin", "staff"].includes(currentRole) &&
+              const showCheckIn =
+                canCheckIn &&
                 row.attendance_status !== "present" &&
                 row.attendance_status !== "completed";
               return (
@@ -74,7 +86,7 @@ function SubmissionsTable({
                   </td>
                   <td className="table-col-actions">
                     <div className="table-actions">
-                      {canQuickCheckIn ? (
+                      {showCheckIn ? (
                         <Button
                           variant="primary"
                           size="sm"
@@ -87,14 +99,49 @@ function SubmissionsTable({
                           </span>
                         </Button>
                       ) : null}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onOpenSubmission(row.submission_id)}
-                      >
-                        <ExternalLink size={13} strokeWidth={2} aria-hidden="true" />
-                        <span>ดูรายละเอียด</span>
-                      </Button>
+
+                      {canCheckIn && onSendEmail ? (
+                        row.checkin_email_sent ? (
+                          <Button variant="ghost" size="sm" disabled>
+                            <MailCheck size={13} strokeWidth={2} aria-hidden="true" />
+                            <span>ส่งเมลแล้ว</span>
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={sendingEmailId === row.submission_id}
+                            onClick={() => onSendEmail(row.submission_id)}
+                          >
+                            <Mail size={13} strokeWidth={2} aria-hidden="true" />
+                            <span>
+                              {sendingEmailId === row.submission_id ? "กำลังส่ง..." : "ส่งอีเมล"}
+                            </span>
+                          </Button>
+                        )
+                      ) : null}
+
+                      {isPreRegister ? (
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => onEditEntry?.(row)}>
+                            <Pencil size={13} strokeWidth={2} aria-hidden="true" />
+                            <span>แก้ไข</span>
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => onDeleteEntry?.(row)}>
+                            <Trash2 size={13} strokeWidth={2} aria-hidden="true" />
+                            <span>ลบ</span>
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onOpenSubmission(row.submission_id)}
+                        >
+                          <ExternalLink size={13} strokeWidth={2} aria-hidden="true" />
+                          <span>ดูรายละเอียด</span>
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>

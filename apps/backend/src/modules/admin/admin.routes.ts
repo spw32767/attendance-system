@@ -11,12 +11,16 @@ import {
   buildImportTemplateExcel,
   createEmailTemplate,
   createItem,
+  createManualSubmission,
   deleteItem,
+  deleteSubmission,
   exportFormSubmissionsExcel,
   getFormDraft,
   getSubmissionDetail,
   getSubmissionFile,
+  queueCheckinEmail,
   updateItem,
+  updateSubmissionAnswers,
   importFormSubmissionsFromExcel,
   previewImportFormSubmissionsFromExcel,
   listAdminLoginLogs,
@@ -119,6 +123,77 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
     const body = (request.body || {}) as Record<string, any>;
     await updateSubmission(Number(submissionId), body);
     return { ok: true };
+  });
+
+  // Manually add a pre-registered entry (VIP roster) to a form.
+  fastify.post("/admin/forms/:formId/submissions", async (request, reply) => {
+    const formId = toNumber((request.params as Record<string, string>).formId);
+    if (!formId) {
+      return reply.code(400).send({ error: "formId ไม่ถูกต้อง" });
+    }
+    const body = (request.body || {}) as Record<string, any>;
+    const result = await createManualSubmission(Number(formId), body.answers || {});
+    if (!result.ok) {
+      const msgs: Record<string, string> = {
+        form_not_found: "ไม่พบฟอร์ม"
+      };
+      return reply
+        .code(result.reason === "form_not_found" ? 404 : 400)
+        .send({ error: msgs[result.reason] || "เพิ่มรายชื่อไม่สำเร็จ", reason: result.reason });
+    }
+    return { submissionId: result.submissionId, submissionCode: result.submissionCode };
+  });
+
+  // Edit the answers of a pre-registered submission (import_excel / manual only).
+  fastify.patch("/admin/submissions/:submissionId/answers", async (request, reply) => {
+    const submissionId = toNumber((request.params as Record<string, string>).submissionId);
+    if (!submissionId) {
+      return reply.code(400).send({ error: "submissionId ไม่ถูกต้อง" });
+    }
+    const body = (request.body || {}) as Record<string, any>;
+    const result = await updateSubmissionAnswers(Number(submissionId), body.answers || {});
+    if (!result.ok) {
+      const msgs: Record<string, string> = {
+        not_found: "ไม่พบรายการ",
+        not_editable: "แก้ไขได้เฉพาะรายชื่อล่วงหน้า (ไม่ใช่คำตอบที่ผู้ใช้กรอกเอง)"
+      };
+      return reply
+        .code(result.reason === "not_found" ? 404 : 400)
+        .send({ error: msgs[result.reason] || "แก้ไขไม่สำเร็จ", reason: result.reason });
+    }
+    return { ok: true };
+  });
+
+  // Soft-delete a pre-registered submission.
+  fastify.delete("/admin/submissions/:submissionId", async (request, reply) => {
+    const submissionId = toNumber((request.params as Record<string, string>).submissionId);
+    if (!submissionId) {
+      return reply.code(400).send({ error: "submissionId ไม่ถูกต้อง" });
+    }
+    const result = await deleteSubmission(Number(submissionId));
+    if (!result.ok) {
+      const msgs: Record<string, string> = {
+        not_found: "ไม่พบรายการ",
+        not_deletable: "ลบได้เฉพาะรายชื่อล่วงหน้า"
+      };
+      return reply
+        .code(result.reason === "not_found" ? 404 : 400)
+        .send({ error: msgs[result.reason] || "ลบไม่สำเร็จ", reason: result.reason });
+    }
+    return { ok: true };
+  });
+
+  // Send the check-in (souvenir QR) email on demand — decoupled from check-in.
+  fastify.post("/admin/submissions/:submissionId/checkin-email", async (request, reply) => {
+    const submissionId = toNumber((request.params as Record<string, string>).submissionId);
+    if (!submissionId) {
+      return reply.code(400).send({ error: "submissionId ไม่ถูกต้อง" });
+    }
+    const result = await queueCheckinEmail(Number(submissionId));
+    if (result.status === "not_found") {
+      return reply.code(404).send({ error: "ไม่พบรายการ", status: result.status });
+    }
+    return { status: result.status };
   });
 
   fastify.get("/admin/forms/:formId/submissions/import-template", async (request, reply) => {

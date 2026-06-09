@@ -7,7 +7,8 @@ export const STATUS_META = {
 
 export const SOURCE_TYPE_LABELS = {
   public_form: "ผู้เข้าร่วมกรอกเอง",
-  import_excel: "นำเข้าจาก Excel"
+  import_excel: "นำเข้าจาก Excel",
+  manual: "เพิ่มในระบบ"
 };
 
 export const PREVIEW_STATUS_META = {

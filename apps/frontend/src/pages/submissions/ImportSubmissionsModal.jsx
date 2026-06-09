@@ -10,6 +10,7 @@ function ImportSubmissionsModal({
   defaultFormId,
   onPreview,
   onImport,
+  onDownloadTemplate,
   onSuccess,
   onError
 }) {
@@ -148,7 +149,20 @@ function ImportSubmissionsModal({
 
       <div className="submissions-modal-actions">
         <p className="submissions-modal-hint">
-          แนบไฟล์แล้วระบบจะพรีวิวให้อัตโนมัติ ก่อนกด Confirm Import
+          ไม่รู้ว่าไฟล์ต้องมีคอลัมน์อะไร? ดาวน์โหลด template แล้วกรอกตามหัวคอลัมน์
+          {onDownloadTemplate ? (
+            <>
+              {" "}
+              <button
+                type="button"
+                className="text-button"
+                disabled={!formId || isImporting}
+                onClick={() => onDownloadTemplate(Number(formId))}
+              >
+                ดาวน์โหลด template (.xlsx)
+              </button>
+            </>
+          ) : null}
         </p>
         <Button
           variant="primary"
