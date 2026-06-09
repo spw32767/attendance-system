@@ -1,7 +1,10 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import Fastify, { FastifyInstance } from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import fastifyCors from "@fastify/cors";
 import fastifyRateLimit from "@fastify/rate-limit";
+import fastifyStatic from "@fastify/static";
 import { pool } from "./db/mysql";
 import adminRoutes from "./modules/admin/admin.routes";
 import authRoutes from "./modules/auth/auth.routes";
@@ -76,6 +79,29 @@ export function buildApp(): FastifyInstance {
   app.register(healthRoutes);
   app.register(authRoutes, { prefix: "/api" });
   app.register(adminRoutes, { prefix: "/api" });
+
+  // Same-origin deployment: in production this Node process also serves the
+  // built frontend (static assets + SPA history fallback), so frontend and
+  // API share one origin — no CORS, cookies "just work". Skipped in dev,
+  // where Vite serves the frontend on its own port.
+  const frontendDist =
+    process.env.FRONTEND_DIST_PATH || path.resolve(__dirname, "../../frontend/dist");
+
+  if (existsSync(path.join(frontendDist, "index.html"))) {
+    app.register(fastifyStatic, { root: frontendDist, wildcard: false });
+
+    app.setNotFoundHandler((request, reply) => {
+      // Unmatched API routes (or non-GET) → JSON 404. Any other GET is a
+      // client-side route (/admin/*, /forms/*) → serve index.html so a
+      // refresh / direct link doesn't 404.
+      const url = request.raw.url || "";
+      if (request.method !== "GET" || url.startsWith("/api")) {
+        reply.code(404).send({ error: "not found" });
+        return;
+      }
+      reply.type("text/html").sendFile("index.html");
+    });
+  }
 
   app.addHook("onClose", async () => {
     await pool.end();
