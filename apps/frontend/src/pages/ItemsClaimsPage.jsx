@@ -280,6 +280,7 @@ function ItemsClaimsPage({
                 <tr>
                   <th className="table-col-secondary">Claim Token</th>
                   <th className="table-col-secondary">Submission</th>
+                  <th className="table-col-meta">ผู้รับ</th>
                   <th className="table-col-primary table-col-left">รายการ</th>
                   <th className="table-col-meta">โครงการ/ฟอร์ม</th>
                   <th className="table-col-status">สถานะ</th>
@@ -291,7 +292,7 @@ function ItemsClaimsPage({
             <tbody>
               {filteredRows.length === 0 ? (
                 <tr>
-                  <td className="empty-row" colSpan={mode === "items" ? 7 : 7}>
+                  <td className="empty-row" colSpan={mode === "items" ? 7 : 8}>
                     ไม่พบข้อมูล
                   </td>
                 </tr>
@@ -375,6 +376,14 @@ function ItemsClaimsPage({
                         <span className="table-code">{claim.claim_token}</span>
                       </td>
                       <td className="table-col-secondary">{claim.submission_code}</td>
+                      <td className="table-col-meta">
+                        <div className="table-primary-cell">
+                          <p>{claim.respondent_name && claim.respondent_name !== "-" ? claim.respondent_name : "ไม่ระบุชื่อ"}</p>
+                          {claim.respondent_email && claim.respondent_email !== "-" ? (
+                            <small>{claim.respondent_email}</small>
+                          ) : null}
+                        </div>
+                      </td>
                       <td className="table-col-primary table-col-left">
                         <div className="table-primary-cell">
                           <p>{claim.item_name}</p>

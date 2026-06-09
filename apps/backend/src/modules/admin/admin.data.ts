@@ -1517,7 +1517,7 @@ export const queueCheckinEmail = async (
 
     const claimRows = await queryRows<AnyRow>(
       `
-        SELECT c.claim_token, i.item_name
+        SELECT c.claim_token, c.item_id, i.item_name
         FROM item_claims c
         INNER JOIN item_catalogs i ON i.item_id = c.item_id
         WHERE submission_id = ?
@@ -1529,11 +1529,25 @@ export const queueCheckinEmail = async (
       connection
     );
 
+    // Multiple claims may share an item_id when default_qty > 1. Number them
+    // "(1/N)" so each QR card in the email is uniquely identifiable.
+    const itemTotals = claimRows.reduce<Record<string, number>>((acc, row) => {
+      const key = String(row.item_id || "");
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    const itemSeen: Record<string, number> = {};
     const claimQrTokens = claimRows
-      .map((row, index) => ({
-        label: String(row.item_name || `รายการที่ ${index + 1}`),
-        token: String(row.claim_token || "").trim()
-      }))
+      .map((row, index) => {
+        const key = String(row.item_id || "");
+        const total = itemTotals[key] || 1;
+        const seen = (itemSeen[key] = (itemSeen[key] || 0) + 1);
+        const name = String(row.item_name || `รายการที่ ${index + 1}`);
+        return {
+          label: total > 1 ? `${name} (${seen}/${total})` : name,
+          token: String(row.claim_token || "").trim()
+        };
+      })
       .filter((row) => row.token);
 
     const recipient =
@@ -1932,9 +1946,17 @@ const submitFormForRow = async (
     }
 
     // ---- 2) Unique-value check (per-field is_unique_value flag) ----
+    // When the form allows multiple submissions, "unique per email" is
+    // contradictory by definition — skip the unique check on the email-usage
+    // field so a returning respondent can submit again. Other unique fields
+    // (e.g. an ID number) still apply.
     if (enforceValidation) {
+      const allowMultiple = Boolean(formRow.allow_multiple_submissions);
       for (const field of fields) {
         if (!field.is_unique_value) {
+          continue;
+        }
+        if (allowMultiple && String(field.field_usage || "") === "email") {
           continue;
         }
         const candidate = answers[field.id];
@@ -1968,10 +1990,15 @@ const submitFormForRow = async (
           connection
         );
         if (dupRows.length > 0) {
+          const fieldLabel = String(field.field_label || field.field_code || "ข้อมูล");
+          const friendlyError =
+            String(field.field_usage || "") === "email"
+              ? "อีเมลนี้เคยลงทะเบียนไว้แล้ว กรุณาใช้อีเมลอื่น"
+              : `"${fieldLabel}" นี้ถูกใช้ไปแล้ว กรุณาตรวจสอบและกรอกค่าอื่น`;
           return {
             ok: false,
             status: "duplicate_value",
-            error: `ค่านี้ถูกใช้แล้วในฟอร์ม: "${field.field_label || field.field_code || "ข้อมูล"}"`,
+            error: friendlyError,
             fieldId: String(field.id)
           };
         }
@@ -2057,7 +2084,7 @@ const submitFormForRow = async (
         return {
           ok: false,
           status: "already_submitted",
-          error: "อีเมลนี้ส่งแบบฟอร์มไปแล้ว ฟอร์มนี้รับได้ครั้งเดียวต่อบัญชี"
+          error: "อีเมลนี้เคยลงทะเบียนไว้แล้ว ฟอร์มนี้รับลงทะเบียนได้เพียงครั้งเดียวต่ออีเมล"
         };
       }
     }
@@ -2211,35 +2238,42 @@ const submitFormForRow = async (
         connection
       );
 
+      // Issue one scannable claim per unit (default_qty). Each token can be
+      // scanned independently so a respondent entitled to N units gets N
+      // separate QRs / N "uses" at the pickup desk.
+      let tokenSequence = 0;
       for (let index = 0; index < itemRows.length; index += 1) {
         const itemRow = itemRows[index];
-        const claimToken = `CLAIM-${String(formRow.form_id).padStart(3, "0")}-${String(nextSubmissionId).padStart(4, "0")}-${index + 1}`;
-        claimQrTokens.push({
-          label: String(itemRow.item_name || `รายการที่ ${index + 1}`),
-          token: claimToken
-        });
-        await execute(
-          `
-            INSERT INTO item_claims (
-              submission_id,
-              item_id,
-              claim_token,
-              receive_status,
-              qr_issued_at,
-              qty,
-              notes
-            ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
-          `,
-          [
-            nextSubmissionId,
-            itemRow.item_id,
-            claimToken,
-            "pending",
-            Number(itemRow.default_qty || 1),
-            null
-          ],
-          connection
-        );
+        const itemName = String(itemRow.item_name || `รายการที่ ${index + 1}`);
+        const unitCount = Math.max(1, Number(itemRow.default_qty || 1));
+        for (let unit = 0; unit < unitCount; unit += 1) {
+          tokenSequence += 1;
+          const claimToken = `CLAIM-${String(formRow.form_id).padStart(3, "0")}-${String(nextSubmissionId).padStart(4, "0")}-${tokenSequence}`;
+          const label = unitCount > 1 ? `${itemName} (${unit + 1}/${unitCount})` : itemName;
+          claimQrTokens.push({ label, token: claimToken });
+          await execute(
+            `
+              INSERT INTO item_claims (
+                submission_id,
+                item_id,
+                claim_token,
+                receive_status,
+                qr_issued_at,
+                qty,
+                notes
+              ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
+            `,
+            [
+              nextSubmissionId,
+              itemRow.item_id,
+              claimToken,
+              "pending",
+              1,
+              null
+            ],
+            connection
+          );
+        }
       }
     }
 
@@ -3334,6 +3368,7 @@ export const listClaims = async () => {
     `
       SELECT
         c.claim_id,
+        c.submission_id,
         f.project_id,
         s.form_id,
         c.item_id,
@@ -3358,19 +3393,39 @@ export const listClaims = async () => {
     `
   );
 
-  return rows.map((row) => ({
-    claim_id: Number(row.claim_id),
-    project_id: Number(row.project_id),
-    form_id: String(row.form_id),
-    item_id: Number(row.item_id),
-    submission_code: row.submission_code || "",
-    claim_token: row.claim_token || "",
-    receive_status: row.receive_status || "pending",
-    received_at: toDateTime(row.received_at),
-    item_name: row.item_name || "-",
-    form_name: row.form_name || "-",
-    project_name: row.project_name || "-"
-  }));
+  const submissionIds = Array.from(
+    new Set(rows.map((row) => Number(row.submission_id)).filter((id) => Number.isFinite(id)))
+  );
+  const answerRows = submissionIds.length
+    ? await getSubmissionAnswerRows(submissionIds)
+    : [];
+  const answersBySubmissionId = answerRows.reduce<Record<number, AnyRow[]>>((acc, row) => {
+    const sid = Number(row.submission_id);
+    if (!acc[sid]) {
+      acc[sid] = [];
+    }
+    acc[sid].push(row);
+    return acc;
+  }, {});
+
+  return rows.map((row) => {
+    const identity = toRespondentIdentity(answersBySubmissionId[Number(row.submission_id)] || []);
+    return {
+      claim_id: Number(row.claim_id),
+      project_id: Number(row.project_id),
+      form_id: String(row.form_id),
+      item_id: Number(row.item_id),
+      submission_code: row.submission_code || "",
+      claim_token: row.claim_token || "",
+      receive_status: row.receive_status || "pending",
+      received_at: toDateTime(row.received_at),
+      item_name: row.item_name || "-",
+      form_name: row.form_name || "-",
+      project_name: row.project_name || "-",
+      respondent_name: identity.respondentName,
+      respondent_email: identity.respondentEmail
+    };
+  });
 };
 
 export const updateClaimStatus = async (claimId: number, receiveStatus: string) => {
