@@ -18,6 +18,7 @@
     "test:backend": "npm run test -w @attendance/backend",
     "migrate": "npm run migrate -w @attendance/backend",
     "migrate:status": "npm run migrate:status -w @attendance/backend",
-    "migrate:baseline": "npm run migrate:baseline -w @attendance/backend"
+    "migrate:baseline": "npm run migrate:baseline -w @attendance/backend",
+    "seed:admin": "npm run seed:admin -w @attendance/backend"
   }
 }
