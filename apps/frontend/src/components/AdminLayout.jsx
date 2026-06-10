@@ -19,6 +19,8 @@ import {
   KeyRound,
   Sun,
   Moon,
+  Menu,
+  X,
   Circle
 } from "lucide-react";
 import { Button, Modal } from "./ui";
@@ -63,6 +65,7 @@ function AdminLayout({
   });
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   const [isChangePwOpen, setIsChangePwOpen] = useState(false);
   const [changePwDraft, setChangePwDraft] = useState({ current: "", next: "", confirm: "" });
@@ -132,6 +135,31 @@ function AdminLayout({
       isSidebarCollapsed ? "1" : "0"
     );
   }, [isSidebarCollapsed]);
+
+  // Close the mobile drawer whenever the active page changes (so tapping a
+  // nav item navigates AND collapses the drawer in one gesture).
+  useEffect(() => {
+    setIsMobileNavOpen(false);
+  }, [activePath]);
+
+  // While the drawer is open, lock background scroll and close on ESC.
+  useEffect(() => {
+    if (!isMobileNavOpen) {
+      return undefined;
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onEsc = (event) => {
+      if (event.key === "Escape") {
+        setIsMobileNavOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [isMobileNavOpen]);
 
   const groupedNavItems = (navItems || []).reduce((groups, item) => {
     const groupName = item.group || "เมนู";
@@ -214,6 +242,20 @@ function AdminLayout({
         <div className="admin-stage">
           <header className="admin-topbar">
             <div className="admin-topbar-left">
+              {navItems?.length ? (
+                <button
+                  className="icon-only-button icon-neutral-button admin-mobile-menu-button"
+                  type="button"
+                  onClick={() => setIsMobileNavOpen(true)}
+                  title="เปิดเมนู"
+                  aria-label="เปิดเมนู"
+                  aria-haspopup="dialog"
+                  aria-expanded={isMobileNavOpen}
+                  aria-controls="admin-mobile-drawer"
+                >
+                  <Menu size={18} strokeWidth={2} />
+                </button>
+              ) : null}
               {onBack ? (
                 <button
                   className="icon-only-button icon-neutral-button admin-back-button"
@@ -319,31 +361,70 @@ function AdminLayout({
             </div>
           </header>
 
-          {navItems?.length ? (
-            <nav className="admin-mobile-tabs" aria-label="เมนูบนมือถือ">
-              {navItems.map((item) => {
-                const isActive = resolveNavState(item);
-                const IconComponent = NAV_ICON_MAP[item.icon] || Circle;
-
-                return (
-                  <button
-                    key={item.routeKey || `${item.path}-${item.label}`}
-                    className={`admin-mobile-tab${isActive ? " admin-mobile-tab-active" : ""}`}
-                    type="button"
-                    onClick={() => onNavigate?.(item.path)}
-                    aria-current={isActive ? "page" : undefined}
-                  >
-                    <IconComponent size={14} strokeWidth={isActive ? 2.2 : 1.9} />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          ) : null}
-
           <section className="admin-content">{children}</section>
         </div>
       </main>
+
+      {navItems?.length ? (
+        <div
+          className={`admin-mobile-drawer-root${isMobileNavOpen ? " admin-mobile-drawer-open" : ""}`}
+          aria-hidden={!isMobileNavOpen}
+        >
+          <div
+            className="admin-mobile-drawer-backdrop"
+            onClick={() => setIsMobileNavOpen(false)}
+          />
+          <aside
+            id="admin-mobile-drawer"
+            className="admin-mobile-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="เมนูหลังบ้าน"
+          >
+            <div className="admin-mobile-drawer-header">
+              <p className="admin-sidebar-title">Attendance Admin</p>
+              <button
+                className="icon-only-button icon-neutral-button"
+                type="button"
+                onClick={() => setIsMobileNavOpen(false)}
+                aria-label="ปิดเมนู"
+                title="ปิดเมนู"
+              >
+                <X size={16} strokeWidth={2} />
+              </button>
+            </div>
+            <nav className="admin-mobile-drawer-nav">
+              {Object.entries(groupedNavItems).map(([groupName, items]) => (
+                <section className="admin-nav-group" key={groupName}>
+                  <p className="admin-nav-group-title">{groupName}</p>
+                  {items.map((item) => {
+                    const isActive = resolveNavState(item);
+                    const IconComponent = NAV_ICON_MAP[item.icon] || Circle;
+
+                    return (
+                      <button
+                        key={item.routeKey || `${item.path}-${item.label}`}
+                        className={`admin-nav-button${isActive ? " admin-nav-button-active" : ""}`}
+                        type="button"
+                        onClick={() => {
+                          setIsMobileNavOpen(false);
+                          onNavigate?.(item.path);
+                        }}
+                        aria-current={isActive ? "page" : undefined}
+                      >
+                        <span className="admin-nav-button-icon">
+                          <IconComponent size={15} strokeWidth={isActive ? 2.2 : 1.8} />
+                        </span>
+                        <span className="admin-nav-button-label">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </section>
+              ))}
+            </nav>
+          </aside>
+        </div>
+      ) : null}
 
       <Modal
         open={isChangePwOpen}
