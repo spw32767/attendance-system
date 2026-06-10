@@ -1,11 +1,82 @@
+import { AlertTriangle } from "lucide-react";
 import { Button } from "../../components/ui";
 import { FORM_STATUSES, FORM_TYPES } from "../../constants/formBuilder";
 import { toSlugOrFallback } from "./helpers";
 
+// Inline-styled amber banner. The design system only ships --danger
+// (red) tokens today, so we keep the warning palette local until a
+// proper --warning token lands.
+const WARNING_BANNER_STYLE = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 12,
+  padding: "12px 14px",
+  borderRadius: 10,
+  border: "1px solid #f5c97a",
+  background: "#fff7e3",
+  color: "#7a5300",
+  marginBottom: 16,
+  fontSize: 14,
+  lineHeight: 1.55
+};
+
 function DetailsTab({ draft, availableProjects, onChange }) {
+  // The submission/check-in email features and the "one submission per
+  // person" rule all key on a field tagged field_usage='email'. If that
+  // field is missing, those features silently misbehave (emails fly off
+  // to unknown@example.com, dup-check never blocks). Warn the admin
+  // before they leave the builder thinking it works.
+  const fields = Array.isArray(draft.fields) ? draft.fields : [];
+  const hasEmailField = fields.some((field) => field?.field_usage === "email");
+
+  const wantsSubmissionEmail = draft.send_submission_email !== false;
+  const wantsCheckinEmail = draft.send_checkin_email !== false;
+  const enforcesOneSubmissionPerEmail = draft.allow_multiple_submissions === false;
+
+  const missingEmailReasons = !hasEmailField
+    ? [
+        wantsSubmissionEmail
+          ? "ส่งอีเมลยืนยันการลงทะเบียนเปิดอยู่ — ระบบจะไม่รู้ว่าจะส่งไปที่ไหน"
+          : null,
+        wantsCheckinEmail
+          ? 'อนุญาตให้แอดมินส่งอีเมลยืนยันเช็กอินเปิดอยู่ — กดปุ่ม "ส่งอีเมล" ในหน้า Submissions แล้วจะส่งไปไม่ถึงผู้รับ'
+          : null,
+        enforcesOneSubmissionPerEmail
+          ? "ปิด \"อนุญาตให้ตอบได้หลายครั้ง\" ไว้ — แต่ระบบจะไม่มีอะไรเทียบว่าคนนี้เคยตอบไปแล้วหรือยัง"
+          : null
+      ].filter(Boolean)
+    : [];
+
   return (
     <section className="builder-meta-card builder-page-width">
       <h2>รายละเอียดแบบฟอร์ม</h2>
+
+      {missingEmailReasons.length > 0 ? (
+        <div role="alert" style={WARNING_BANNER_STYLE}>
+          <AlertTriangle
+            size={18}
+            strokeWidth={2}
+            aria-hidden="true"
+            style={{ flex: "0 0 auto", marginTop: 2, color: "#b3741a" }}
+          />
+          <div>
+            <p style={{ margin: 0, fontWeight: 700 }}>
+              ฟอร์มนี้ยังไม่มีฟิลด์ที่ตั้ง "การใช้งาน" เป็น{" "}
+              <strong>อีเมล</strong>
+            </p>
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+              {missingEmailReasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+            <p style={{ margin: "8px 0 0" }}>
+              วิธีแก้: ไปแท็บ <strong>คำถาม</strong> เพิ่มฟิลด์{" "}
+              <em>ข้อความสั้น</em> แล้วเลือกหัวข้อ "การใช้งาน" เป็น{" "}
+              <strong>อีเมล</strong>
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="builder-meta-grid">
         <label>
