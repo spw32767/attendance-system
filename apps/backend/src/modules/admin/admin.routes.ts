@@ -193,6 +193,11 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
     if (result.status === "not_found") {
       return reply.code(404).send({ error: "ไม่พบรายการ", status: result.status });
     }
+    if (result.status === "disabled") {
+      return reply
+        .code(409)
+        .send({ error: "ฟอร์มนี้ปิดการส่งอีเมลเช็กอินไว้", status: result.status });
+    }
     return { status: result.status };
   });
 

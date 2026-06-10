@@ -423,6 +423,8 @@ CREATE TABLE `form_forms` (
   `form_type` varchar(50) NOT NULL DEFAULT 'attendance' COMMENT 'ประเภทของฟอร์ม เช่น attendance, pickup, registration, custom',
   `status` varchar(50) NOT NULL DEFAULT 'draft' COMMENT 'สถานะของฟอร์ม เช่น draft, published, closed',
   `allow_multiple_submissions` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'กำหนดว่าฟอร์มนี้อนุญาตให้ผู้ใช้ส่งคำตอบซ้ำได้หลายครั้งหรือไม่',
+  `send_submission_email` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'ส่งอีเมลยืนยันการลงทะเบียนให้ผู้กรอกหลังกดส่งฟอร์ม (1=ส่ง, 0=ไม่ส่ง)',
+  `send_checkin_email` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'อนุญาตให้แอดมิน "ส่งอีเมลเช็กอิน" หลังยืนยันการมา (1=อนุญาต, 0=ไม่ส่ง)',
   `start_at` datetime DEFAULT NULL COMMENT 'วันเวลาเริ่มเปิดให้ใช้งานฟอร์ม หากเป็น NULL แปลว่ายังไม่กำหนดเวลาเริ่ม',
   `end_at` datetime DEFAULT NULL COMMENT 'วันเวลาสิ้นสุดการเปิดฟอร์ม หากเป็น NULL แปลว่ายังไม่กำหนดเวลาปิด',
   `success_title` varchar(255) DEFAULT NULL COMMENT 'หัวข้อข้อความที่จะแสดงหลังผู้ใช้ส่งฟอร์มสำเร็จ',

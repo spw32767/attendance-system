@@ -218,6 +218,8 @@ export const createInitialDraft = (
     form_type: "attendance",
     status: "draft",
     allow_multiple_submissions: false,
+    send_submission_email: true,
+    send_checkin_email: true,
     start_at: "",
     end_at: "",
     success_title: "ส่งแบบฟอร์มสำเร็จ",

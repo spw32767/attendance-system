@@ -350,6 +350,8 @@ const getFormRows = async (projectId?: number | null, connection?: PoolConnectio
         f.form_type,
         f.status,
         f.allow_multiple_submissions,
+        f.send_submission_email,
+        f.send_checkin_email,
         f.start_at,
         f.end_at,
         f.success_title,
@@ -382,6 +384,13 @@ const mapFormSummary = (row: AnyRow) => {
     form_type: row.form_type || "attendance",
     status: row.status || "draft",
     allow_multiple_submissions: toBoolean(row.allow_multiple_submissions),
+    // New email toggles default to true so forms created before the migration
+    // (and seeded fixtures missing the column) keep their historical behavior
+    // of mailing the respondent.
+    send_submission_email:
+      row.send_submission_email == null ? true : toBoolean(row.send_submission_email),
+    send_checkin_email:
+      row.send_checkin_email == null ? true : toBoolean(row.send_checkin_email),
     start_at: toDateTime(row.start_at),
     end_at: toDateTime(row.end_at),
     share_key: settings.share_key || toShareKey(),
@@ -846,6 +855,8 @@ export const getFormDraft = async (formId: number | null, projectId: number | nu
       form_type: "attendance",
       status: "draft",
       allow_multiple_submissions: false,
+      send_submission_email: true,
+      send_checkin_email: true,
       start_at: "",
       end_at: "",
       success_title: "ส่งแบบฟอร์มสำเร็จ",
@@ -864,6 +875,8 @@ export const getFormDraft = async (formId: number | null, projectId: number | nu
         form_type,
         status,
         allow_multiple_submissions,
+        send_submission_email,
+        send_checkin_email,
         start_at,
         end_at,
         success_title,
@@ -893,6 +906,10 @@ export const getFormDraft = async (formId: number | null, projectId: number | nu
     form_type: row.form_type || "attendance",
     status: row.status || "draft",
     allow_multiple_submissions: toBoolean(row.allow_multiple_submissions),
+    send_submission_email:
+      row.send_submission_email == null ? true : toBoolean(row.send_submission_email),
+    send_checkin_email:
+      row.send_checkin_email == null ? true : toBoolean(row.send_checkin_email),
     start_at: toDateTime(row.start_at),
     end_at: toDateTime(row.end_at),
     success_title: row.success_title || "",
@@ -1028,6 +1045,8 @@ export const saveFormDraft = async (
               form_type = ?,
               status = ?,
               allow_multiple_submissions = ?,
+              send_submission_email = ?,
+              send_checkin_email = ?,
               start_at = ?,
               end_at = ?,
               success_title = ?,
@@ -1043,6 +1062,8 @@ export const saveFormDraft = async (
           draft.form_type || "attendance",
           targetStatus || draft.status || "draft",
           draft.allow_multiple_submissions ? 1 : 0,
+          draft.send_submission_email === false ? 0 : 1,
+          draft.send_checkin_email === false ? 0 : 1,
           toNullableDateTime(draft.start_at),
           toNullableDateTime(draft.end_at),
           draft.success_title || null,
@@ -1063,12 +1084,14 @@ export const saveFormDraft = async (
             form_type,
             status,
             allow_multiple_submissions,
+            send_submission_email,
+            send_checkin_email,
             start_at,
             end_at,
             success_title,
             success_message,
             settings_json
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           draft.project_id,
@@ -1078,6 +1101,8 @@ export const saveFormDraft = async (
           draft.form_type || "attendance",
           targetStatus || draft.status || "draft",
           draft.allow_multiple_submissions ? 1 : 0,
+          draft.send_submission_email === false ? 0 : 1,
+          draft.send_checkin_email === false ? 0 : 1,
           toNullableDateTime(draft.start_at),
           toNullableDateTime(draft.end_at),
           draft.success_title || null,
@@ -1469,14 +1494,19 @@ export const updateSubmission = async (submissionId: number, payload: AnyPayload
  */
 export const queueCheckinEmail = async (
   submissionId: number
-): Promise<{ status: "sent" | "already_sent" | "not_found" }> => {
+): Promise<{ status: "sent" | "already_sent" | "not_found" | "disabled" }> => {
   let pendingEmail: PendingEmailDispatch | null = null;
-  let outcome: "sent" | "already_sent" | "not_found" = "not_found";
+  let outcome: "sent" | "already_sent" | "not_found" | "disabled" = "not_found";
 
   await withTransaction(async (connection) => {
     const rows = await queryRows<AnyRow>(
       `
-        SELECT s.submission_id, s.form_id, s.submission_code, f.form_name
+        SELECT
+          s.submission_id,
+          s.form_id,
+          s.submission_code,
+          f.form_name,
+          f.send_checkin_email
         FROM entry_submissions s
         INNER JOIN form_forms f ON f.form_id = s.form_id
         WHERE s.submission_id = ?
@@ -1491,6 +1521,16 @@ export const queueCheckinEmail = async (
     const current = rows[0];
     if (!current) {
       outcome = "not_found";
+      return;
+    }
+
+    // Per-form opt-out — admin disabled check-in emails for this form in the
+    // form builder. Bail before touching email_send_logs so nothing is queued.
+    // Default-on for rows missing the column (legacy data).
+    const formAllowsCheckinEmail =
+      current.send_checkin_email == null || Number(current.send_checkin_email) !== 0;
+    if (!formAllowsCheckinEmail) {
+      outcome = "disabled";
       return;
     }
 
@@ -1787,6 +1827,8 @@ export const getPublicForm = async (publicPath: string) => {
         form_type,
         status,
         allow_multiple_submissions,
+        send_submission_email,
+        send_checkin_email,
         start_at,
         end_at,
         success_title,
@@ -2294,7 +2336,16 @@ const submitFormForRow = async (
     let pendingEmail: PendingEmailDispatch | null = null;
 
     const activeTemplate = emailTemplateRows[0];
-    if (activeTemplate && options.queueSubmissionEmail !== false) {
+    // formRow.send_submission_email defaults to 1 (mail the respondent).
+    // Treat it as on unless explicitly set to 0 so legacy rows missing the
+    // column (e.g. pre-migration test data) keep their historical behavior.
+    const formSendsSubmissionEmail =
+      formRow.send_submission_email == null || Number(formRow.send_submission_email) !== 0;
+    if (
+      activeTemplate &&
+      options.queueSubmissionEmail !== false &&
+      formSendsSubmissionEmail
+    ) {
       const renderedSubject = renderTemplate(String(activeTemplate.email_subject_template || ""), {
         form_name: formSummary.form_name,
         submission_code: submissionCode,
@@ -2366,7 +2417,9 @@ export const submitPublicForm = async (publicPath: string, payload: AnyPayload) 
           success_title,
           success_message,
           settings_json,
-          allow_multiple_submissions
+          allow_multiple_submissions,
+          send_submission_email,
+          send_checkin_email
         FROM form_forms
         WHERE public_path = ?
           AND deleted_at IS NULL
@@ -2487,7 +2540,10 @@ const getFormRowForImport = async (formId: number, connection?: PoolConnection) 
         end_at,
         success_title,
         success_message,
-        settings_json
+        settings_json,
+        allow_multiple_submissions,
+        send_submission_email,
+        send_checkin_email
       FROM form_forms
       WHERE form_id = ?
         AND deleted_at IS NULL

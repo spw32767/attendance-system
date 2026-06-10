@@ -104,6 +104,28 @@ function DetailsTab({ draft, availableProjects, onChange }) {
           <span>อนุญาตให้ตอบได้หลายครั้ง</span>
         </label>
 
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={draft.send_submission_email !== false}
+            onChange={(event) =>
+              onChange("send_submission_email", event.target.checked)
+            }
+          />
+          <span>ส่งอีเมลยืนยันการลงทะเบียนให้ผู้กรอกอัตโนมัติ (พร้อม QR ของรางวัล)</span>
+        </label>
+
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={draft.send_checkin_email !== false}
+            onChange={(event) =>
+              onChange("send_checkin_email", event.target.checked)
+            }
+          />
+          <span>อนุญาตให้แอดมินส่งอีเมลยืนยันเช็กอินจากหน้า Submissions / Pre-register</span>
+        </label>
+
         <label>
           <span>เริ่มใช้งาน</span>
           <input

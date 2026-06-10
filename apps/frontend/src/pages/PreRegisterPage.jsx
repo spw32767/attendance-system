@@ -107,7 +107,13 @@ function PreRegisterPage({
         toast.success("ส่งอีเมลของรางวัลแล้ว");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "ส่งอีเมลไม่สำเร็จ");
+      // Per-form opt-out: backend returns 409 status="disabled" when the
+      // form's send_checkin_email toggle is off — calm info toast, not red.
+      if (error?.data?.status === "disabled") {
+        toast.info("ฟอร์มนี้ปิดการส่งอีเมลเช็กอินไว้");
+      } else {
+        toast.error(error instanceof Error ? error.message : "ส่งอีเมลไม่สำเร็จ");
+      }
     } finally {
       setSendingEmailId(null);
     }
