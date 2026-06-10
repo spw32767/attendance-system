@@ -693,10 +693,10 @@ const renderTemplate = (template: string, replacements: Record<string, string>) 
   return output;
 };
 
-// Default submission-confirmation email seeded for every newly created form,
-// so registration confirmations fire out of the box. Placeholders are filled
+// Default templates seeded for every newly created form so the two
+// out-of-the-box flows work without manual setup. Placeholders are filled
 // by renderTemplate at send time; the styled shell + QR cards are added by
-// email.service. Admins can edit or replace this from the Email page.
+// email.service. Admins can edit or disable either from the Email page.
 const DEFAULT_SUBMISSION_EMAIL_TEMPLATE = {
   notificationCode: "submission_confirmation",
   templateName: "เทมเพลตยืนยันการลงทะเบียน",
@@ -704,6 +704,16 @@ const DEFAULT_SUBMISSION_EMAIL_TEMPLATE = {
   body:
     "<p>สวัสดีคุณ {{full_name}}</p>" +
     "<p>ระบบได้รับการลงทะเบียนของคุณสำหรับงาน <strong>{{form_name}}</strong> เรียบร้อยแล้ว</p>" +
+    "<p>รหัสการลงทะเบียน: <strong>{{submission_code}}</strong></p>"
+};
+
+const DEFAULT_CHECKIN_EMAIL_TEMPLATE = {
+  notificationCode: "checkin_confirmation",
+  templateName: "เทมเพลตยืนยันเช็กอิน",
+  subject: "ยืนยันเช็กอิน {{form_name}} - {{submission_code}}",
+  body:
+    "<p>สวัสดีคุณ {{full_name}}</p>" +
+    "<p>ระบบได้ยืนยันการเช็กอินของคุณสำหรับงาน <strong>{{form_name}}</strong> เรียบร้อยแล้ว</p>" +
     "<p>รหัสการลงทะเบียน: <strong>{{submission_code}}</strong></p>"
 };
 
@@ -1120,22 +1130,28 @@ export const saveFormDraft = async (
         connection
       );
 
-      // Seed a default submission-confirmation template so the new form's
-      // registration emails work without a manual setup step.
-      await execute(
-        `INSERT INTO email_notification_templates
-           (form_id, notification_code, template_name, is_active, send_to_field_usage,
-            email_subject_template, email_body_template, include_item_summary, include_qr_codes)
-         VALUES (?, ?, ?, 1, 'email', ?, ?, 1, 1)`,
-        [
-          resolvedFormId,
-          DEFAULT_SUBMISSION_EMAIL_TEMPLATE.notificationCode,
-          DEFAULT_SUBMISSION_EMAIL_TEMPLATE.templateName,
-          DEFAULT_SUBMISSION_EMAIL_TEMPLATE.subject,
-          DEFAULT_SUBMISSION_EMAIL_TEMPLATE.body
-        ],
-        connection
-      );
+      // Seed both default templates so the new form's submission AND
+      // check-in emails work without manual setup. Admins can edit, disable,
+      // or replace either of these from the Email page.
+      for (const template of [
+        DEFAULT_SUBMISSION_EMAIL_TEMPLATE,
+        DEFAULT_CHECKIN_EMAIL_TEMPLATE
+      ]) {
+        await execute(
+          `INSERT INTO email_notification_templates
+             (form_id, notification_code, template_name, is_active, send_to_field_usage,
+              email_subject_template, email_body_template, include_item_summary, include_qr_codes)
+           VALUES (?, ?, ?, 1, 'email', ?, ?, 1, 1)`,
+          [
+            resolvedFormId,
+            template.notificationCode,
+            template.templateName,
+            template.subject,
+            template.body
+          ],
+          connection
+        );
+      }
     }
 
     const activeFieldRows = await queryRows<AnyRow>(
@@ -1595,12 +1611,38 @@ export const queueCheckinEmail = async (
         ? identity.respondentEmail
         : "unknown@example.com";
 
-    const emailSubject = `ยืนยันเช็กอิน ${current.form_name || "-"} - ${current.submission_code || ""}`.slice(0, 255);
-    const emailBody =
-      `<p style="margin:0 0 14px;font-size:16px;">สวัสดีคุณ <strong>${identity.respondentName || "ผู้เข้าร่วม"}</strong></p>` +
-      `<p style="margin:0 0 20px;">ระบบได้ยืนยันการเช็กอินของคุณสำหรับงาน <strong style="color:#0f172a;">${current.form_name || "-"}</strong> เรียบร้อยแล้ว</p>` +
-      `<p style="margin:0;">รหัสการลงทะเบียน: <strong style="color:#0f172a;">${current.submission_code || "-"}</strong></p>` +
-      buildClaimLinesHtml(claimQrTokens);
+    // Prefer the admin-editable template; fall back to the hardcoded default
+    // so legacy forms (created before the auto-seed) still get a usable mail
+    // body even if their checkin_confirmation row was never inserted.
+    const checkinTemplateRows = await queryRows<AnyRow>(
+      `
+        SELECT email_template_id, email_subject_template, email_body_template
+        FROM email_notification_templates
+        WHERE form_id = ?
+          AND notification_code = 'checkin_confirmation'
+          AND is_active = 1
+          AND deleted_at IS NULL
+        LIMIT 1
+      `,
+      [current.form_id],
+      connection
+    );
+    const checkinTemplate = checkinTemplateRows[0] || null;
+    const subjectTemplate = String(
+      checkinTemplate?.email_subject_template ||
+        DEFAULT_CHECKIN_EMAIL_TEMPLATE.subject
+    );
+    const bodyTemplate = String(
+      checkinTemplate?.email_body_template || DEFAULT_CHECKIN_EMAIL_TEMPLATE.body
+    );
+    const placeholders = {
+      form_name: String(current.form_name || "-"),
+      submission_code: String(current.submission_code || "-"),
+      full_name: identity.respondentName || "ผู้เข้าร่วม"
+    };
+    const emailSubject = renderTemplate(subjectTemplate, placeholders).slice(0, 255);
+    const renderedBody = renderTemplate(bodyTemplate, placeholders);
+    const emailBody = `${renderedBody}${buildClaimLinesHtml(claimQrTokens)}`;
 
     const insertResult = await execute(
       `
@@ -1614,7 +1656,15 @@ export const queueCheckinEmail = async (
           send_status
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
-      [null, current.form_id, submissionId, recipient, "checkin_confirmation", emailSubject, "queued"],
+      [
+        checkinTemplate?.email_template_id || null,
+        current.form_id,
+        submissionId,
+        recipient,
+        "checkin_confirmation",
+        emailSubject,
+        "queued"
+      ],
       connection
     );
 

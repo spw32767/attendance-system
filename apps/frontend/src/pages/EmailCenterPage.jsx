@@ -3,6 +3,36 @@ import { Pencil, Plus } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 import { Button, PageHead } from "../components/ui";
 
+// Two flows currently emit emails. Keep these in sync with the backend
+// constants in admin.data.ts (DEFAULT_SUBMISSION_EMAIL_TEMPLATE / DEFAULT_CHECKIN_EMAIL_TEMPLATE).
+const NOTIFICATION_PRESETS = {
+  submission_confirmation: {
+    label: "ยืนยันการลงทะเบียน",
+    templateName: "เทมเพลตยืนยันการลงทะเบียน",
+    subject: "ยืนยันการลงทะเบียน {{form_name}} - {{submission_code}}",
+    body:
+      "<p>สวัสดีคุณ {{full_name}}</p>\n" +
+      "<p>ระบบได้รับการลงทะเบียนของคุณสำหรับงาน <strong>{{form_name}}</strong> เรียบร้อยแล้ว</p>\n" +
+      "<p>รหัสการลงทะเบียน: <strong>{{submission_code}}</strong></p>"
+  },
+  checkin_confirmation: {
+    label: "ยืนยันเช็กอิน",
+    templateName: "เทมเพลตยืนยันเช็กอิน",
+    subject: "ยืนยันเช็กอิน {{form_name}} - {{submission_code}}",
+    body:
+      "<p>สวัสดีคุณ {{full_name}}</p>\n" +
+      "<p>ระบบได้ยืนยันการเช็กอินของคุณสำหรับงาน <strong>{{form_name}}</strong> เรียบร้อยแล้ว</p>\n" +
+      "<p>รหัสการลงทะเบียน: <strong>{{submission_code}}</strong></p>"
+  }
+};
+
+const NOTIFICATION_OPTIONS = Object.entries(NOTIFICATION_PRESETS).map(
+  ([value, preset]) => ({ value, label: preset.label })
+);
+
+const notificationLabel = (code) =>
+  NOTIFICATION_PRESETS[code]?.label || code || "-";
+
 function EmailCenterPage({
   templates,
   logs,
@@ -26,19 +56,32 @@ function EmailCenterPage({
   const [draftSubject, setDraftSubject] = useState("");
   const [draftBody, setDraftBody] = useState("");
 
-  const DEFAULT_SUBJECT = "ยืนยันการลงทะเบียน {{form_name}} - {{submission_code}}";
-  const DEFAULT_BODY =
-    "<p>สวัสดีคุณ {{full_name}}</p>\n" +
-    "<p>ระบบได้รับการลงทะเบียนของคุณสำหรับงาน <strong>{{form_name}}</strong> เรียบร้อยแล้ว</p>\n" +
-    "<p>รหัสการลงทะเบียน: <strong>{{submission_code}}</strong></p>";
-
   const [showCreate, setShowCreate] = useState(false);
   const [createFormId, setCreateFormId] = useState("");
-  const [createName, setCreateName] = useState("เทมเพลตยืนยันการลงทะเบียน");
-  const [createSubject, setCreateSubject] = useState(DEFAULT_SUBJECT);
-  const [createBody, setCreateBody] = useState(DEFAULT_BODY);
+  const [createNotificationCode, setCreateNotificationCode] = useState(
+    "submission_confirmation"
+  );
+  const [createName, setCreateName] = useState(
+    NOTIFICATION_PRESETS.submission_confirmation.templateName
+  );
+  const [createSubject, setCreateSubject] = useState(
+    NOTIFICATION_PRESETS.submission_confirmation.subject
+  );
+  const [createBody, setCreateBody] = useState(
+    NOTIFICATION_PRESETS.submission_confirmation.body
+  );
   const [createError, setCreateError] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
+
+  const applyNotificationPreset = (code) => {
+    setCreateNotificationCode(code);
+    const preset = NOTIFICATION_PRESETS[code];
+    if (preset) {
+      setCreateName(preset.templateName);
+      setCreateSubject(preset.subject);
+      setCreateBody(preset.body);
+    }
+  };
 
   const projectForms = useMemo(
     () =>
@@ -100,15 +143,15 @@ function EmailCenterPage({
     try {
       await onCreateTemplate?.({
         form_id: Number(createFormId),
+        notification_code: createNotificationCode,
         template_name: createName.trim(),
         email_subject: createSubject,
         email_body: createBody
       });
       setShowCreate(false);
       setCreateFormId("");
-      setCreateName("เทมเพลตยืนยันการลงทะเบียน");
-      setCreateSubject(DEFAULT_SUBJECT);
-      setCreateBody(DEFAULT_BODY);
+      // Reset the form back to the submission-confirmation preset.
+      applyNotificationPreset("submission_confirmation");
     } catch (err) {
       setCreateError(err?.message || "สร้างเทมเพลตไม่สำเร็จ");
     } finally {
@@ -222,6 +265,20 @@ function EmailCenterPage({
                 </select>
               </label>
               <label className="full-width">
+                <span>ประเภทอีเมล</span>
+                <select
+                  className="select-control"
+                  value={createNotificationCode}
+                  onChange={(event) => applyNotificationPreset(event.target.value)}
+                >
+                  {NOTIFICATION_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="full-width">
                 <span>ชื่อเทมเพลต</span>
                 <input
                   className="input-control"
@@ -297,7 +354,12 @@ function EmailCenterPage({
                         <small>{template.is_active ? "พร้อมใช้งาน" : "ปิดใช้งานอยู่"}</small>
                       </div>
                     </td>
-                    <td className="table-col-secondary">{template.notification_code}</td>
+                    <td className="table-col-secondary">
+                      <div className="table-primary-cell">
+                        <p>{notificationLabel(template.notification_code)}</p>
+                        <small>{template.notification_code}</small>
+                      </div>
+                    </td>
                     <td className="table-col-meta">
                       <div className="table-primary-cell">
                         <p>{template.project_name}</p>
@@ -351,7 +413,12 @@ function EmailCenterPage({
                   <tr key={log.email_log_id}>
                     <td className="table-col-date">{new Date(log.created_at).toLocaleString("th-TH")}</td>
                     <td className="table-col-meta">{log.recipient_email}</td>
-                    <td className="table-col-secondary">{log.notification_code}</td>
+                    <td className="table-col-secondary">
+                      <div className="table-primary-cell">
+                        <p>{notificationLabel(log.notification_code)}</p>
+                        <small>{log.notification_code}</small>
+                      </div>
+                    </td>
                     <td className="table-col-meta">
                       <div className="table-primary-cell">
                         <p>{log.project_name}</p>
