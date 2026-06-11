@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Moon, Send, Sun } from "lucide-react";
 import { Button, EmptyState, Spinner } from "../components/ui";
 
@@ -85,10 +85,18 @@ function PublicFormPage({
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Parent's onLoadPublicForm is recreated on every App render (e.g. when
+  // the theme toggle flips). If loadForm depended on that callback, the
+  // effect below would re-fire on theme change, reset `answers` to the
+  // empty seed, and wipe whatever the respondent had typed. Keep the
+  // latest callback in a ref so the effect only depends on publicPath.
+  const onLoadPublicFormRef = useRef(onLoadPublicForm);
+  onLoadPublicFormRef.current = onLoadPublicForm;
+
   const loadForm = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await onLoadPublicForm(publicPath);
+      const result = await onLoadPublicFormRef.current(publicPath);
       if (!result) {
         setFormStatus("error");
         setFormData(null);
@@ -111,7 +119,7 @@ function PublicFormPage({
     } finally {
       setLoading(false);
     }
-  }, [onLoadPublicForm, publicPath]);
+  }, [publicPath]);
 
   useEffect(() => {
     void loadForm();
@@ -319,7 +327,7 @@ function PublicFormPage({
             return (
             <article
               key={field.id}
-              className="google-preview-question-card"
+              className={`google-preview-question-card${fieldError ? " google-preview-question-card-error" : ""}`}
               data-field-id={field.id}
             >
               <p className="google-preview-question-title">

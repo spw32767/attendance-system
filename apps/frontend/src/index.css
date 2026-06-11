@@ -3263,6 +3263,38 @@ label.checkbox-row span {
   padding: 20px 24px;
 }
 
+/* Invalid-state styling. Many of the affected properties have higher-
+   specificity defaults elsewhere on the page (and a global Tailwind
+   preflight tugs at border-color), so we lean on !important here to
+   short-circuit the cascade — these styles only kick in once React adds
+   the -error modifier, so there's no risk of over-applying. */
+.google-preview-question-card.google-preview-question-card-error {
+  border: 1px solid var(--danger) !important;
+  background: color-mix(in srgb, var(--danger-soft) 55%, var(--surface-base)) !important;
+  box-shadow: inset 4px 0 0 0 var(--danger);
+}
+
+.google-preview-question-card-error .google-preview-question-title {
+  color: var(--danger);
+}
+
+/* Inputs inside the public form override the default border-shape to
+   "border-bottom-only" (Google-Forms-style underline), so just setting
+   border-color has no visible effect. Target border-bottom directly. */
+.google-preview-question-card .input-control[aria-invalid="true"],
+.google-preview-question-card .textarea-control[aria-invalid="true"] {
+  border-bottom: 2px solid var(--danger) !important;
+}
+
+.google-preview-question-card .select-control[aria-invalid="true"],
+.google-preview-question-card-error .file-upload-preview .input-control {
+  border-color: var(--danger) !important;
+}
+
+.google-preview-question-card-error .preview-options {
+  border-color: var(--danger);
+}
+
 .google-preview-question-title {
   margin: 0;
   font-weight: 500;
