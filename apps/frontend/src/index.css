@@ -1334,6 +1334,33 @@ button:disabled {
   cursor: progress !important;
 }
 
+/* Small theme toggle anchored to the corner of the public form. Public
+   respondents have no chrome around them — this is the only way to flip
+   between light and dark without going through admin. */
+.public-form-theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: var(--surface-base);
+  color: var(--text-main);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  z-index: 20;
+}
+
+.public-form-theme-toggle:hover {
+  background: var(--surface-soft);
+  border-color: var(--line-strong);
+}
+
 .public-form-card {
   width: min(100%, 640px);
   margin: 0 auto;

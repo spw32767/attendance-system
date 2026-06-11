@@ -1220,6 +1220,8 @@ function App() {
         publicPath={route.params.publicPath}
         onLoadPublicForm={handleLoadPublicForm}
         onSubmitPublicForm={handleSubmitPublicForm}
+        theme={theme}
+        onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
         onNavigateSuccess={(result, allowMultiple) => {
           const query = new URLSearchParams();
           query.set("code", result.submissionCode || "");

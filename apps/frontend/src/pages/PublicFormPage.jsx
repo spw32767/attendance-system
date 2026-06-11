@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Send } from "lucide-react";
+import { Moon, Send, Sun } from "lucide-react";
 import { Button, EmptyState, Spinner } from "../components/ui";
 
 const EMPTY_MESSAGES = {
@@ -74,7 +74,9 @@ function PublicFormPage({
   onLoadPublicForm,
   onSubmitPublicForm,
   onNavigateSuccess,
-  onGoLogin
+  onGoLogin,
+  theme,
+  onToggleTheme
 }) {
   const [loading, setLoading] = useState(true);
   const [formStatus, setFormStatus] = useState("not_found");
@@ -125,30 +127,71 @@ function PublicFormPage({
       ...current,
       [fieldId]: value
     }));
+    // Clear this field's error the moment the user types — the banner near
+    // the submit button reflects whether *any* errors remain, so dropping
+    // the fixed entry calms it down without forcing a re-validate.
+    setErrors((current) => {
+      if (!current[fieldId]) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[fieldId];
+      if (Object.keys(next).length === 0) {
+        setHasValidationErrors(false);
+      }
+      return next;
+    });
   };
 
   const validate = () => {
     const nextErrors = {};
+    let firstErrorFieldId = null;
 
     orderedFields.forEach((field) => {
       const value = answers[field.id];
 
       if (field.is_required && isEmptyAnswer(value)) {
         nextErrors[field.id] = "กรุณากรอกข้อมูลช่องนี้";
-        return;
+      } else {
+        const formatError = validateFieldFormat(field, value);
+        if (formatError) {
+          nextErrors[field.id] = formatError;
+        }
       }
 
-      const formatError = validateFieldFormat(field, value);
-      if (formatError) {
-        nextErrors[field.id] = formatError;
+      if (nextErrors[field.id] && firstErrorFieldId == null) {
+        firstErrorFieldId = field.id;
       }
     });
 
     setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    return { ok: Object.keys(nextErrors).length === 0, firstErrorFieldId };
+  };
+
+  // Pull the user's eyes to the field that needs attention. Without this the
+  // error renders far above the submit button and tapping "ส่งข้อมูล"
+  // appears to do nothing — users think the page is frozen.
+  const focusFieldById = (fieldId) => {
+    if (fieldId == null) {
+      return;
+    }
+    const node = document.querySelector(`[data-field-id="${fieldId}"]`);
+    if (!node) {
+      return;
+    }
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    const focusable = node.querySelector(
+      "input:not([type='hidden']):not([disabled]), textarea:not([disabled]), select:not([disabled])"
+    );
+    if (focusable && typeof focusable.focus === "function") {
+      // Delay focus until after the scroll starts so iOS Safari doesn't
+      // fight us and zoom back to the bottom of the page.
+      window.setTimeout(() => focusable.focus({ preventScroll: true }), 80);
+    }
   };
 
   const [submitError, setSubmitError] = useState("");
+  const [hasValidationErrors, setHasValidationErrors] = useState(false);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -157,9 +200,17 @@ function PublicFormPage({
       return;
     }
 
-    if (!validate()) {
+    const { ok, firstErrorFieldId } = validate();
+    if (!ok) {
+      // Surface BOTH a banner near the button AND a focused jump to the
+      // first offending field. The banner stops the "did my click work?"
+      // confusion when the bad field is offscreen.
+      setHasValidationErrors(true);
+      setSubmitError("");
+      focusFieldById(firstErrorFieldId);
       return;
     }
+    setHasValidationErrors(false);
 
     setIsSubmitting(true);
     setSubmitError("");
@@ -185,12 +236,11 @@ function PublicFormPage({
       if (data?.fieldId) {
         setErrors({ [data.fieldId]: message });
         setSubmitError("");
-        const node = document.querySelector(`[data-field-id="${data.fieldId}"]`);
-        if (node) {
-          node.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
+        setHasValidationErrors(true);
+        focusFieldById(data.fieldId);
       } else {
         setSubmitError(message);
+        setHasValidationErrors(false);
       }
     } finally {
       setIsSubmitting(false);
@@ -231,6 +281,22 @@ function PublicFormPage({
 
   return (
     <div className={`public-form-shell${isSubmitting ? " is-submitting" : ""}`}>
+      {onToggleTheme ? (
+        <button
+          type="button"
+          className="public-form-theme-toggle"
+          onClick={onToggleTheme}
+          aria-pressed={theme === "dark"}
+          title={theme === "dark" ? "เปลี่ยนเป็นธีมสว่าง" : "เปลี่ยนเป็นธีมมืด"}
+          aria-label={theme === "dark" ? "เปลี่ยนเป็นธีมสว่าง" : "เปลี่ยนเป็นธีมมืด"}
+        >
+          {theme === "dark" ? (
+            <Sun size={16} strokeWidth={2} aria-hidden="true" />
+          ) : (
+            <Moon size={16} strokeWidth={2} aria-hidden="true" />
+          )}
+        </button>
+      ) : null}
       <section className="google-preview-surface">
         <article className="google-preview-form-card">
           <div className="google-preview-form-accent" />
@@ -435,6 +501,12 @@ function PublicFormPage({
           {submitError ? (
             <p className="public-form-submit-error" role="alert">
               {submitError}
+            </p>
+          ) : null}
+
+          {hasValidationErrors && Object.keys(errors).length > 0 ? (
+            <p className="public-form-submit-error" role="alert">
+              กรุณาตรวจสอบช่องที่ทำเครื่องหมายไว้ด้านบน แล้วลองส่งอีกครั้ง
             </p>
           ) : null}
 
