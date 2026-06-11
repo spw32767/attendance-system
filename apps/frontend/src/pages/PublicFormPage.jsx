@@ -514,9 +514,6 @@ function PublicFormPage({
 
           {hasValidationErrors && Object.keys(errors).length > 0 ? (
             <div className="public-form-error-summary" role="alert">
-              <p className="public-form-error-summary-title">
-                ยังส่งไม่ได้ — มี {Object.keys(errors).length} ช่องที่ต้องแก้ไข
-              </p>
               <ul className="public-form-error-summary-list">
                 {orderedFields
                   .filter((field) => errors[field.id])

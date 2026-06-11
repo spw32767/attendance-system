@@ -1506,9 +1506,19 @@ button:disabled {
   color: var(--text-soft);
 }
 
+/* Rendered as a <small> inside .google-preview-question-card, whose generic
+   `small` rule lower in the file forces var(--text-muted). Match the same
+   element-qualified specificity so we override it for the error pill. */
+.google-preview-question-card small.public-form-error,
 .public-form-error {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 4px 10px;
+  border-radius: 6px;
   color: var(--danger);
-  font-size: 0.86rem;
+  background: color-mix(in srgb, var(--danger-soft) 75%, transparent);
+  font-size: 0.92rem;
+  font-weight: 700;
 }
 
 .templates-head {
