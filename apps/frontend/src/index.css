@@ -2467,7 +2467,12 @@ button:disabled {
   min-width: 72px;
 }
 
-.checkbox-row {
+/* IMPORTANT: this is `label.checkbox-row`, not just `.checkbox-row`. The
+   `.builder-meta-grid label` rule above forces `display: grid; gap: 8px`
+   on every label inside the form-builder Details grid, which stacks the
+   checkbox above the text. Matching the same specificity (and being
+   defined later in the file) lets us override it back to a single row. */
+label.checkbox-row {
   display: inline-flex;
   /* Align icon with first line of text so 2-line labels stay tidy. */
   align-items: flex-start;
@@ -2483,7 +2488,7 @@ button:disabled {
   cursor: pointer;
 }
 
-.checkbox-row input {
+label.checkbox-row input {
   width: 16px;
   height: 16px;
   /* Nudge so the checkbox sits on the first line baseline of the label. */
@@ -2491,7 +2496,7 @@ button:disabled {
   flex: 0 0 16px;
 }
 
-.checkbox-row span {
+label.checkbox-row span {
   min-width: 0;
   word-wrap: break-word;
 }
