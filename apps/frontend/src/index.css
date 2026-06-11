@@ -2469,20 +2469,31 @@ button:disabled {
 
 .checkbox-row {
   display: inline-flex;
-  align-items: center;
+  /* Align icon with first line of text so 2-line labels stay tidy. */
+  align-items: flex-start;
   gap: 10px;
   min-height: 42px;
   border: 1px solid var(--line-soft);
   border-radius: 10px;
-  padding: 0 10px;
+  padding: 10px 12px;
   background: var(--surface-base);
   font-weight: 600;
   color: var(--text-soft);
+  line-height: 1.45;
+  cursor: pointer;
 }
 
 .checkbox-row input {
   width: 16px;
   height: 16px;
+  /* Nudge so the checkbox sits on the first line baseline of the label. */
+  margin-top: 3px;
+  flex: 0 0 16px;
+}
+
+.checkbox-row span {
+  min-width: 0;
+  word-wrap: break-word;
 }
 
 .checkbox-row.compact {

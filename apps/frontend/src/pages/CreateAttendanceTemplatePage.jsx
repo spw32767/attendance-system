@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../components/AdminLayout";
-import { Button, PageHead } from "../components/ui";
+import { Button, PageHead, useToast } from "../components/ui";
 import DetailsTab from "./formBuilder/DetailsTab";
 import QuestionsTab from "./formBuilder/QuestionsTab";
 import {
@@ -39,7 +39,10 @@ function CreateAttendanceTemplatePage({
   const [showPreview, setShowPreview] = useState(false);
   const [draggingFieldId, setDraggingFieldId] = useState(null);
   const [dragOverFieldId, setDragOverFieldId] = useState(null);
-  const [bannerText, setBannerText] = useState("");
+  // "draft" vs "published" or null when idle. Used so the right button shows
+  // a spinner — and the other one stays clickable but visually muted.
+  const [savingAs, setSavingAs] = useState(null);
+  const toast = useToast();
 
   const activeProject = useMemo(
     () =>
@@ -61,7 +64,6 @@ function CreateAttendanceTemplatePage({
       setActiveFieldId(nextDraft.fields[0]?.id || null);
       setActiveTab("details");
       setShowPreview(false);
-      setBannerText("");
     };
 
     void loadDraft();
@@ -209,23 +211,35 @@ function CreateAttendanceTemplatePage({
   };
 
   const handleSave = async (targetStatus) => {
-    const payload = { ...draft, status: targetStatus };
-    const saveResult = await onSaveForm(selectedTemplateId, payload, targetStatus);
-
-    if (!selectedTemplateId && saveResult?.formId) {
-      setBannerText("บันทึกแล้ว ระบบกำลังเปิดหน้าแก้ไขของฟอร์มที่สร้างใหม่");
-      onNavigate(
-        `/admin/forms/editor?project=${payload.project_id}&template=${saveResult.formId}`
-      );
+    if (savingAs) {
       return;
     }
+    setSavingAs(targetStatus);
+    const payload = { ...draft, status: targetStatus };
+    try {
+      const saveResult = await onSaveForm(selectedTemplateId, payload, targetStatus);
 
-    setDraft((current) => ({ ...current, status: targetStatus }));
-    setBannerText(
-      targetStatus === "published"
-        ? "เผยแพร่แบบฟอร์มแล้ว ทีมงานสามารถเริ่มใช้งานเทมเพลตนี้ได้ทันที"
-        : "บันทึกฉบับร่างแล้ว คุณสามารถกลับมาแก้ไขต่อได้ทุกเมื่อ"
-    );
+      if (!selectedTemplateId && saveResult?.formId) {
+        toast.success("บันทึกฟอร์มใหม่แล้ว กำลังเปิดหน้าแก้ไข");
+        onNavigate(
+          `/admin/forms/editor?project=${payload.project_id}&template=${saveResult.formId}`
+        );
+        return;
+      }
+
+      setDraft((current) => ({ ...current, status: targetStatus }));
+      toast.success(
+        targetStatus === "published"
+          ? "เผยแพร่แบบฟอร์มแล้ว ทีมงานเริ่มใช้งานได้ทันที"
+          : "บันทึกฉบับร่างแล้ว กลับมาแก้ไขต่อได้ทุกเมื่อ"
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message ? err.message : "บันทึกฟอร์มไม่สำเร็จ"
+      );
+    } finally {
+      setSavingAs(null);
+    }
   };
 
   return (
@@ -258,20 +272,30 @@ function CreateAttendanceTemplatePage({
           }
           actions={
             <>
-              <Button variant="ghost" onClick={() => handleSave("draft")}>
-                <span>บันทึกฉบับร่าง</span>
+              <Button
+                variant="ghost"
+                onClick={() => handleSave("draft")}
+                loading={savingAs === "draft"}
+                disabled={savingAs !== null}
+              >
+                <span>
+                  {savingAs === "draft" ? "กำลังบันทึก..." : "บันทึกฉบับร่าง"}
+                </span>
               </Button>
-              <Button variant="primary" onClick={() => handleSave("published")}>
-                <span>เผยแพร่</span>
+              <Button
+                variant="primary"
+                onClick={() => handleSave("published")}
+                loading={savingAs === "published"}
+                disabled={savingAs !== null}
+              >
+                <span>
+                  {savingAs === "published" ? "กำลังเผยแพร่..." : "เผยแพร่"}
+                </span>
               </Button>
             </>
           }
         />
       </div>
-
-      {bannerText ? (
-        <p className="notice-banner builder-page-width">{bannerText}</p>
-      ) : null}
 
       <div className="builder-page-width">
         <nav className="builder-tabs" aria-label="แท็บจัดการแบบฟอร์ม">
