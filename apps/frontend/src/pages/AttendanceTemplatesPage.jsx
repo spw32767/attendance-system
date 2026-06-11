@@ -16,7 +16,7 @@ import {
   Archive,
   ArchiveRestore
 } from "lucide-react";
-import { Button, PageHead, useToast } from "../components/ui";
+import { Button, ConfirmDialog, PageHead, useToast } from "../components/ui";
 import AdminLayout from "../components/AdminLayout";
 import TableActionMenu from "../components/TableActionMenu";
 
@@ -87,6 +87,8 @@ function AttendanceTemplatesPage({
   const [page, setPage] = useState(1);
   const [copiedId, setCopiedId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
   const toast = useToast();
 
   const archivedCount = useMemo(
@@ -94,17 +96,22 @@ function AttendanceTemplatesPage({
     [templates]
   );
 
-  const handleArchiveClick = async (template) => {
-    if (!window.confirm(
-      `เก็บฟอร์ม "${template.form_name}" เข้าคลัง?\n\n` +
-      "คำตอบและสิทธิ์รับของทั้งหมดจะถูกซ่อน แต่ข้อมูลยังคงอยู่ใน DB และนำกลับมาใช้งานได้"
-    )) {
+  const handleArchiveClick = (template) => {
+    setArchiveTarget(template);
+  };
+
+  const handleArchiveConfirm = async () => {
+    if (!archiveTarget) {
       return;
     }
+    setArchiveBusy(true);
     try {
-      await onArchiveForm?.(template.form_id);
+      await onArchiveForm?.(archiveTarget.form_id);
+      setArchiveTarget(null);
     } catch (err) {
       toast.error(err?.message || "เก็บเข้าคลังไม่สำเร็จ");
+    } finally {
+      setArchiveBusy(false);
     }
   };
 
@@ -463,6 +470,20 @@ function AttendanceTemplatesPage({
           </div>
         </footer>
       </section>
+
+      <ConfirmDialog
+        open={Boolean(archiveTarget)}
+        onClose={() => setArchiveTarget(null)}
+        onConfirm={handleArchiveConfirm}
+        busy={archiveBusy}
+        title="เก็บฟอร์มเข้าคลัง?"
+        description={archiveTarget?.form_name}
+        confirmLabel="เก็บเข้าคลัง"
+        confirmVariant="danger"
+      >
+        คำตอบและสิทธิ์รับของทั้งหมดของฟอร์มนี้จะถูกซ่อน
+        แต่ข้อมูลยังคงอยู่ใน DB และนำกลับมาใช้งานได้ทุกเมื่อ
+      </ConfirmDialog>
     </AdminLayout>
   );
 }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
-import { Button, PageHead, useToast } from "../components/ui";
+import { Button, ConfirmDialog, PageHead, useToast } from "../components/ui";
 import SubmissionsFilters from "./submissions/SubmissionsFilters";
 import SubmissionsTable from "./submissions/SubmissionsTable";
 import ExportSubmissionsModal from "./submissions/ExportSubmissionsModal";
@@ -33,6 +33,7 @@ function SubmissionsPage({
   const [sendingEmailId, setSendingEmailId] = useState(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const toast = useToast();
 
   // This page shows ONLY responses people filled in themselves. Pre-registered
@@ -88,17 +89,22 @@ function SubmissionsPage({
     }
   };
 
-  const handleDelete = async (row) => {
+  const handleDelete = (row) => {
     if (deletingId) {
       return;
     }
-    const label = row?.respondent_name || row?.submission_code || "คำตอบนี้";
-    if (!window.confirm(`ลบคำตอบของ "${label}"?\n\nกู้คืนได้ใน 8 วินาทีหลังจากนี้`)) {
+    setDeleteTarget(row);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) {
       return;
     }
+    const row = deleteTarget;
     setDeletingId(row.submission_id);
     try {
       await onDeleteEntry?.(row.submission_id);
+      setDeleteTarget(null);
       toast.undoable("ลบคำตอบแล้ว", async () => {
         try {
           await onRestoreEntry?.(row.submission_id);
@@ -193,6 +199,20 @@ function SubmissionsPage({
         onSuccess={() => toast.success("Export ข้อมูลสำเร็จ")}
         onError={(text) => toast.error(text)}
       />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteConfirm}
+        busy={deletingId === deleteTarget?.submission_id}
+        title="ลบคำตอบนี้?"
+        description={deleteTarget?.respondent_name || deleteTarget?.submission_code || ""}
+        confirmLabel="ลบ"
+        confirmVariant="danger"
+      >
+        หลังกดลบ ระบบจะแสดงปุ่ม "เลิกทำ" ใน toast 8 วินาที
+        เพื่อให้กู้คืนได้ทันทีหากกดผิด
+      </ConfirmDialog>
     </AdminLayout>
   );
 }

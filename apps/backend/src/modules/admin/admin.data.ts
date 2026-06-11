@@ -1942,26 +1942,32 @@ export const restoreSubmission = async (
 };
 
 export const getPublicForm = async (publicPath: string) => {
+  // Archiving the parent project should also seal off the public form
+  // link — otherwise a respondent with a bookmarked URL could still
+  // submit data the admin thought was retired. Join through
+  // proj_projects and require both deleted_at columns to be NULL.
   const rows = await queryRows<AnyRow>(
     `
       SELECT
-        form_id,
-        project_id,
-        form_name,
-        public_path,
-        form_type,
-        status,
-        allow_multiple_submissions,
-        send_submission_email,
-        send_checkin_email,
-        start_at,
-        end_at,
-        success_title,
-        success_message,
-        settings_json
-      FROM form_forms
-      WHERE public_path = ?
-        AND deleted_at IS NULL
+        f.form_id,
+        f.project_id,
+        f.form_name,
+        f.public_path,
+        f.form_type,
+        f.status,
+        f.allow_multiple_submissions,
+        f.send_submission_email,
+        f.send_checkin_email,
+        f.start_at,
+        f.end_at,
+        f.success_title,
+        f.success_message,
+        f.settings_json
+      FROM form_forms f
+      INNER JOIN proj_projects p ON p.project_id = f.project_id
+      WHERE f.public_path = ?
+        AND f.deleted_at IS NULL
+        AND p.deleted_at IS NULL
       LIMIT 1
     `,
     [publicPath]
@@ -2528,26 +2534,30 @@ const submitFormForRow = async (
 
 export const submitPublicForm = async (publicPath: string, payload: AnyPayload) => {
   const result = await withTransaction(async (connection) => {
+    // Mirror getPublicForm: refuse submissions when the parent project is
+    // archived, so a stale bookmarked link can't sneak data in.
     const formRows = await queryRows<AnyRow>(
       `
         SELECT
-          form_id,
-          project_id,
-          form_name,
-          public_path,
-          form_type,
-          status,
-          start_at,
-          end_at,
-          success_title,
-          success_message,
-          settings_json,
-          allow_multiple_submissions,
-          send_submission_email,
-          send_checkin_email
-        FROM form_forms
-        WHERE public_path = ?
-          AND deleted_at IS NULL
+          f.form_id,
+          f.project_id,
+          f.form_name,
+          f.public_path,
+          f.form_type,
+          f.status,
+          f.start_at,
+          f.end_at,
+          f.success_title,
+          f.success_message,
+          f.settings_json,
+          f.allow_multiple_submissions,
+          f.send_submission_email,
+          f.send_checkin_email
+        FROM form_forms f
+        INNER JOIN proj_projects p ON p.project_id = f.project_id
+        WHERE f.public_path = ?
+          AND f.deleted_at IS NULL
+          AND p.deleted_at IS NULL
         LIMIT 1
       `,
       [publicPath],

@@ -10,7 +10,7 @@ import {
   ChevronRight
 } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
-import { Button, PageHead, useToast } from "../components/ui";
+import { Button, ConfirmDialog, PageHead, useToast } from "../components/ui";
 
 
 
@@ -49,6 +49,7 @@ function ProjectsPage({
   const [page, setPage] = useState(1);
   const [showArchived, setShowArchived] = useState(false);
   const [pendingArchiveId, setPendingArchiveId] = useState(null);
+  const [archiveTarget, setArchiveTarget] = useState(null);
   const toast = useToast();
 
   const archivedCount = useMemo(
@@ -81,19 +82,21 @@ function ProjectsPage({
     });
   }, [projects, searchText, showArchived]);
 
-  const handleArchiveClick = async (project) => {
+  const handleArchiveClick = (project) => {
     if (pendingArchiveId) {
       return;
     }
-    if (!window.confirm(
-      `เก็บโครงการ "${project.project_name}" เข้าคลัง?\n\n` +
-      "โครงการ ฟอร์ม และคำตอบทั้งหมดจะถูกซ่อนจากระบบ แต่ข้อมูลยังคงอยู่ใน DB และสามารถนำกลับมาใช้งานได้"
-    )) {
+    setArchiveTarget(project);
+  };
+
+  const handleArchiveConfirm = async () => {
+    if (!archiveTarget) {
       return;
     }
-    setPendingArchiveId(project.project_id);
+    setPendingArchiveId(archiveTarget.project_id);
     try {
-      await onArchiveProject?.(project.project_id);
+      await onArchiveProject?.(archiveTarget.project_id);
+      setArchiveTarget(null);
     } catch (err) {
       toast.error(err?.message || "เก็บเข้าคลังไม่สำเร็จ");
     } finally {
@@ -326,6 +329,21 @@ function ProjectsPage({
           </div>
         </footer>
       </section>
+
+      <ConfirmDialog
+        open={Boolean(archiveTarget)}
+        onClose={() => setArchiveTarget(null)}
+        onConfirm={handleArchiveConfirm}
+        busy={pendingArchiveId === archiveTarget?.project_id}
+        title="เก็บโครงการเข้าคลัง?"
+        description={archiveTarget?.project_name}
+        confirmLabel="เก็บเข้าคลัง"
+        confirmVariant="danger"
+      >
+        โครงการ ฟอร์ม และคำตอบทั้งหมดในโครงการนี้จะถูกซ่อนจากระบบ
+        แต่ข้อมูลยังคงอยู่ใน DB และสามารถกดปุ่ม "นำกลับ"
+        เพื่อกู้คืนได้ตลอดเวลา
+      </ConfirmDialog>
     </AdminLayout>
   );
 }
