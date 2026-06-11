@@ -8,6 +8,8 @@ import {
 } from "../auth/auth.data";
 import { readStoredFile, StagedFile } from "../../lib/uploads";
 import {
+  archiveForm,
+  archiveProject,
   buildImportTemplateExcel,
   createEmailTemplate,
   createItem,
@@ -19,6 +21,9 @@ import {
   getSubmissionDetail,
   getSubmissionFile,
   queueCheckinEmail,
+  restoreForm,
+  restoreProject,
+  restoreSubmission,
   updateItem,
   updateSubmissionAnswers,
   importFormSubmissionsFromExcel,
@@ -62,7 +67,11 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
     }
   });
 
-  fastify.get("/admin/projects", async () => ({ data: await listProjects() }));
+  fastify.get("/admin/projects", async (request) => {
+    const includeArchived =
+      String((request.query as Record<string, string>)?.includeArchived || "") === "1";
+    return { data: await listProjects({ includeArchived }) };
+  });
 
   fastify.post("/admin/projects", async (request) => {
     const body = (request.body || {}) as Record<string, any>;
@@ -82,11 +91,69 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
     return { ok: true };
   });
 
-  fastify.get("/admin/forms", async () => ({ data: await listForms() }));
+  // Archive / restore — sets or clears deleted_at. Lists default to
+  // includeArchived=false so admin views naturally hide archived rows.
+  fastify.post("/admin/projects/:projectId/archive", async (request, reply) => {
+    const projectId = toNumber((request.params as Record<string, string>).projectId);
+    if (!projectId) {
+      return reply.code(400).send({ error: "projectId ไม่ถูกต้อง" });
+    }
+    const result = await archiveProject(projectId);
+    if (!result.ok) {
+      return reply.code(404).send({ error: "ไม่พบโครงการ หรือเก็บเข้าคลังไปแล้ว" });
+    }
+    return { ok: true };
+  });
+
+  fastify.post("/admin/projects/:projectId/restore", async (request, reply) => {
+    const projectId = toNumber((request.params as Record<string, string>).projectId);
+    if (!projectId) {
+      return reply.code(400).send({ error: "projectId ไม่ถูกต้อง" });
+    }
+    const result = await restoreProject(projectId);
+    if (!result.ok) {
+      return reply.code(404).send({ error: "ไม่พบโครงการ หรือยังใช้งานอยู่" });
+    }
+    return { ok: true };
+  });
+
+  fastify.get("/admin/forms", async (request) => {
+    const includeArchived =
+      String((request.query as Record<string, string>)?.includeArchived || "") === "1";
+    return { data: await listForms({ includeArchived }) };
+  });
 
   fastify.get("/admin/projects/:projectId/forms", async (request) => {
     const projectId = toNumber((request.params as Record<string, string>).projectId);
-    return { data: await listFormsByProject(Number(projectId)) };
+    const includeArchived =
+      String((request.query as Record<string, string>)?.includeArchived || "") === "1";
+    return {
+      data: await listFormsByProject(Number(projectId), { includeArchived })
+    };
+  });
+
+  fastify.post("/admin/forms/:formId/archive", async (request, reply) => {
+    const formId = toNumber((request.params as Record<string, string>).formId);
+    if (!formId) {
+      return reply.code(400).send({ error: "formId ไม่ถูกต้อง" });
+    }
+    const result = await archiveForm(formId);
+    if (!result.ok) {
+      return reply.code(404).send({ error: "ไม่พบฟอร์ม หรือเก็บเข้าคลังไปแล้ว" });
+    }
+    return { ok: true };
+  });
+
+  fastify.post("/admin/forms/:formId/restore", async (request, reply) => {
+    const formId = toNumber((request.params as Record<string, string>).formId);
+    if (!formId) {
+      return reply.code(400).send({ error: "formId ไม่ถูกต้อง" });
+    }
+    const result = await restoreForm(formId);
+    if (!result.ok) {
+      return reply.code(404).send({ error: "ไม่พบฟอร์ม หรือยังใช้งานอยู่" });
+    }
+    return { ok: true };
   });
 
   fastify.get("/admin/forms/:formId/draft", async (request) => {
@@ -164,7 +231,8 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
     return { ok: true };
   });
 
-  // Soft-delete a pre-registered submission.
+  // Soft-delete any submission (public or pre-register). The frontend pairs
+  // this with an "เลิกทำ" undo toast that posts to /restore.
   fastify.delete("/admin/submissions/:submissionId", async (request, reply) => {
     const submissionId = toNumber((request.params as Record<string, string>).submissionId);
     if (!submissionId) {
@@ -172,13 +240,21 @@ const adminRoutes: FastifyPluginAsync = async (fastify): Promise<void> => {
     }
     const result = await deleteSubmission(Number(submissionId));
     if (!result.ok) {
-      const msgs: Record<string, string> = {
-        not_found: "ไม่พบรายการ",
-        not_deletable: "ลบได้เฉพาะรายชื่อล่วงหน้า"
-      };
       return reply
         .code(result.reason === "not_found" ? 404 : 400)
-        .send({ error: msgs[result.reason] || "ลบไม่สำเร็จ", reason: result.reason });
+        .send({ error: result.reason === "not_found" ? "ไม่พบรายการ" : "ลบไม่สำเร็จ", reason: result.reason });
+    }
+    return { ok: true };
+  });
+
+  fastify.post("/admin/submissions/:submissionId/restore", async (request, reply) => {
+    const submissionId = toNumber((request.params as Record<string, string>).submissionId);
+    if (!submissionId) {
+      return reply.code(400).send({ error: "submissionId ไม่ถูกต้อง" });
+    }
+    const result = await restoreSubmission(Number(submissionId));
+    if (!result.ok) {
+      return reply.code(404).send({ error: "ไม่พบรายการที่ถูกลบ", reason: result.reason });
     }
     return { ok: true };
   });

@@ -300,8 +300,8 @@ function App() {
         loadedSsoAccounts,
         loadedAdminLoginLogs
       ] = await Promise.all([
-        adminDataAdapter.listProjects(),
-        adminDataAdapter.listForms(),
+        adminDataAdapter.listProjects({ includeArchived: true }),
+        adminDataAdapter.listForms({ includeArchived: true }),
         adminDataAdapter.listSubmissions(),
         adminDataAdapter.listItems(),
         adminDataAdapter.listClaims(),
@@ -564,8 +564,8 @@ function App() {
         nextSsoAccounts,
         nextAdminLoginLogs
       ] = await Promise.all([
-        adminDataAdapter.listProjects(),
-        adminDataAdapter.listForms(),
+        adminDataAdapter.listProjects({ includeArchived: true }),
+        adminDataAdapter.listForms({ includeArchived: true }),
         adminDataAdapter.listSubmissions(),
         adminDataAdapter.listItems(),
         adminDataAdapter.listClaims(),
@@ -609,7 +609,7 @@ function App() {
       nextSsoAccounts,
       nextAdminLoginLogs
     ] = await Promise.all([
-      adminDataAdapter.listForms(),
+      adminDataAdapter.listForms({ includeArchived: true }),
       adminDataAdapter.listSubmissions(),
       adminDataAdapter.listItems(),
       adminDataAdapter.listClaims(),
@@ -769,16 +769,106 @@ function App() {
     setClaims(nextClaims);
   };
 
+  const handleRestoreEntry = async (submissionId) => {
+    try {
+      await adminDataAdapter.restoreSubmission(submissionId);
+      const [nextSubmissions, nextClaims] = await Promise.all([
+        adminDataAdapter.listSubmissions(),
+        adminDataAdapter.listClaims()
+      ]);
+      setSubmissions(nextSubmissions);
+      setClaims(nextClaims);
+      toast.success("กู้คืนคำตอบแล้ว");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "กู้คืนไม่สำเร็จ");
+    }
+  };
+
   const handleToggleProjectUsage = async (projectId, isActive) => {
     await adminDataAdapter.setProjectUsage(projectId, isActive);
-    const [nextProjects] = await Promise.all([adminDataAdapter.listProjects()]);
+    const [nextProjects] = await Promise.all([adminDataAdapter.listProjects({ includeArchived: true })]);
     setProjects(nextProjects);
+  };
+
+  const handleArchiveProject = async (projectId) => {
+    try {
+      await adminDataAdapter.archiveProject(projectId);
+      // Archiving a project transitively hides its forms + submissions
+      // from the admin lists (the JOINs filter on parent deleted_at).
+      // Refetch everything that depends on project visibility.
+      const [nextProjects, nextForms, nextSubmissions, nextClaims] = await Promise.all([
+        adminDataAdapter.listProjects({ includeArchived: true }),
+        adminDataAdapter.listForms({ includeArchived: true }),
+        adminDataAdapter.listSubmissions(),
+        adminDataAdapter.listClaims()
+      ]);
+      setProjects(nextProjects);
+      setForms(nextForms);
+      setSubmissions(nextSubmissions);
+      setClaims(nextClaims);
+      toast.success("เก็บโครงการเข้าคลังแล้ว");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "เก็บเข้าคลังไม่สำเร็จ");
+    }
+  };
+
+  const handleRestoreProject = async (projectId) => {
+    try {
+      await adminDataAdapter.restoreProject(projectId);
+      const [nextProjects, nextForms, nextSubmissions, nextClaims] = await Promise.all([
+        adminDataAdapter.listProjects({ includeArchived: true }),
+        adminDataAdapter.listForms({ includeArchived: true }),
+        adminDataAdapter.listSubmissions(),
+        adminDataAdapter.listClaims()
+      ]);
+      setProjects(nextProjects);
+      setForms(nextForms);
+      setSubmissions(nextSubmissions);
+      setClaims(nextClaims);
+      toast.success("นำโครงการกลับมาใช้งานแล้ว");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "นำกลับไม่สำเร็จ");
+    }
+  };
+
+  const handleArchiveForm = async (formId) => {
+    try {
+      await adminDataAdapter.archiveForm(formId);
+      const [nextForms, nextSubmissions, nextClaims] = await Promise.all([
+        adminDataAdapter.listForms({ includeArchived: true }),
+        adminDataAdapter.listSubmissions(),
+        adminDataAdapter.listClaims()
+      ]);
+      setForms(nextForms);
+      setSubmissions(nextSubmissions);
+      setClaims(nextClaims);
+      toast.success("เก็บฟอร์มเข้าคลังแล้ว");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "เก็บเข้าคลังไม่สำเร็จ");
+    }
+  };
+
+  const handleRestoreForm = async (formId) => {
+    try {
+      await adminDataAdapter.restoreForm(formId);
+      const [nextForms, nextSubmissions, nextClaims] = await Promise.all([
+        adminDataAdapter.listForms({ includeArchived: true }),
+        adminDataAdapter.listSubmissions(),
+        adminDataAdapter.listClaims()
+      ]);
+      setForms(nextForms);
+      setSubmissions(nextSubmissions);
+      setClaims(nextClaims);
+      toast.success("นำฟอร์มกลับมาใช้งานแล้ว");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "นำกลับไม่สำเร็จ");
+    }
   };
 
   const handleToggleFormUsage = async (formId, isEnabled) => {
     try {
       await adminDataAdapter.setFormUsage(formId, isEnabled);
-      const [nextForms] = await Promise.all([adminDataAdapter.listForms()]);
+      const [nextForms] = await Promise.all([adminDataAdapter.listForms({ includeArchived: true })]);
       setForms(nextForms);
       toast.success(isEnabled ? "เผยแพร่ฟอร์มแล้ว" : "ปิดรับคำตอบแล้ว");
     } catch (error) {
@@ -863,6 +953,8 @@ function App() {
         onCreateProject={handleCreateProject}
         onEditProject={(projectId) => navigate(toProjectEditPath(projectId))}
         onOpenProjectForms={(projectId) => navigate(toProjectFormsPath(projectId))}
+        onArchiveProject={handleArchiveProject}
+        onRestoreProject={handleRestoreProject}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -979,6 +1071,8 @@ function App() {
             navigate(`${PATH_EMAIL}?project=${project.project_id}&form=${templateId}`)
           }
           onToggleFormUsage={handleToggleFormUsage}
+          onArchiveForm={handleArchiveForm}
+          onRestoreForm={handleRestoreForm}
           onBackToProjects={() => navigate(PATH_PROJECTS)}
           onLogout={handleLogout}
           theme={theme}
@@ -1101,6 +1195,8 @@ function App() {
         onOpenSubmission={(submissionId) => navigate(`/admin/submissions/${submissionId}`)}
         onUpdateSubmission={handleUpdateSubmission}
         onSendCheckinEmail={handleSendCheckinEmail}
+        onDeleteEntry={handleDeleteEntry}
+        onRestoreEntry={handleRestoreEntry}
         onExportSubmissionsExcel={handleExportSubmissionsExcel}
         onLogout={handleLogout}
         theme={theme}
@@ -1140,6 +1236,7 @@ function App() {
         onCreateEntry={handleCreateEntry}
         onUpdateEntry={handleUpdateEntry}
         onDeleteEntry={handleDeleteEntry}
+        onRestoreEntry={handleRestoreEntry}
         onPreviewImportSubmissionsExcel={handlePreviewImportSubmissionsExcel}
         onImportSubmissionsExcel={handleImportSubmissionsExcel}
         onDownloadImportTemplate={handleDownloadImportTemplate}

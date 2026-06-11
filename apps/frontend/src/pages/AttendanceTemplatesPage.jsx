@@ -12,9 +12,11 @@ import {
   Copy,
   Check,
   Globe,
-  Ban
+  Ban,
+  Archive,
+  ArchiveRestore
 } from "lucide-react";
-import { Button, PageHead } from "../components/ui";
+import { Button, PageHead, useToast } from "../components/ui";
 import AdminLayout from "../components/AdminLayout";
 import TableActionMenu from "../components/TableActionMenu";
 
@@ -69,6 +71,8 @@ function AttendanceTemplatesPage({
   onOpenItems,
   onOpenEmail,
   onToggleFormUsage,
+  onArchiveForm,
+  onRestoreForm,
   onBackToProjects,
   onLogout,
   theme,
@@ -82,6 +86,35 @@ function AttendanceTemplatesPage({
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(1);
   const [copiedId, setCopiedId] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const toast = useToast();
+
+  const archivedCount = useMemo(
+    () => templates.filter((template) => template.is_archived).length,
+    [templates]
+  );
+
+  const handleArchiveClick = async (template) => {
+    if (!window.confirm(
+      `เก็บฟอร์ม "${template.form_name}" เข้าคลัง?\n\n` +
+      "คำตอบและสิทธิ์รับของทั้งหมดจะถูกซ่อน แต่ข้อมูลยังคงอยู่ใน DB และนำกลับมาใช้งานได้"
+    )) {
+      return;
+    }
+    try {
+      await onArchiveForm?.(template.form_id);
+    } catch (err) {
+      toast.error(err?.message || "เก็บเข้าคลังไม่สำเร็จ");
+    }
+  };
+
+  const handleRestoreClick = async (template) => {
+    try {
+      await onRestoreForm?.(template.form_id);
+    } catch (err) {
+      toast.error(err?.message || "นำกลับไม่สำเร็จ");
+    }
+  };
 
   const handleCopyLink = async (publicPath, formId) => {
     const url = buildPublicFormUrl(publicPath);
@@ -113,11 +146,15 @@ function AttendanceTemplatesPage({
 
   const filteredTemplates = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
+    const visible = showArchived
+      ? templates
+      : templates.filter((template) => !template.is_archived);
+
     if (!keyword) {
-      return templates;
+      return visible;
     }
 
-    return templates.filter((template) => {
+    return visible.filter((template) => {
       const searchable = [
         template.project_name,
         template.form_name,
@@ -133,7 +170,7 @@ function AttendanceTemplatesPage({
 
       return searchable.includes(keyword);
     });
-  }, [templates, searchText]);
+  }, [templates, searchText, showArchived]);
 
   const totalRows = filteredTemplates.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
@@ -198,6 +235,19 @@ function AttendanceTemplatesPage({
             />
           </div>
           <p className="templates-search-meta">พบ {totalRows} ฟอร์มในโครงการนี้</p>
+          {archivedCount > 0 || showArchived ? (
+            <label className="checkbox-row compact" style={{ marginLeft: "auto" }}>
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(event) => {
+                  setShowArchived(event.target.checked);
+                  setPage(1);
+                }}
+              />
+              <span>แสดงที่เก็บเข้าคลัง ({archivedCount})</span>
+            </label>
+          ) : null}
         </div>
 
         <div className="templates-table-wrap">
@@ -228,7 +278,10 @@ function AttendanceTemplatesPage({
                   const rowNumber = startIndex + index + 1;
 
                   return (
-                    <tr key={template.form_id}>
+                    <tr
+                      key={template.form_id}
+                      style={template.is_archived ? { opacity: 0.55 } : undefined}
+                    >
                       <td className="table-col-index">{rowNumber}</td>
                       <td className="table-col-primary table-col-left">
                         <div className="table-primary-cell">
@@ -288,11 +341,18 @@ function AttendanceTemplatesPage({
                       <td className="table-col-date">{formatDateTime(template.updated_at)}</td>
                       <td className="table-col-status">
                         <div className="table-status-readout">
-                          <span className={statusMeta.className}>{statusMeta.label}</span>
+                          {template.is_archived ? (
+                            <span className="status-pill status-pill-inactive">
+                              อยู่ในคลัง
+                            </span>
+                          ) : (
+                            <span className={statusMeta.className}>{statusMeta.label}</span>
+                          )}
                         </div>
                       </td>
                       <td className="table-col-actions-wide">
                         <div className="table-actions">
+                          {template.is_archived ? null : (
                           <Button
                             variant="primary"
                             size="sm"
@@ -301,6 +361,8 @@ function AttendanceTemplatesPage({
                             <Pencil size={13} strokeWidth={2} aria-hidden="true" />
                             <span>แก้ไข</span>
                           </Button>
+                          )}
+                          {template.is_archived ? null : (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -309,7 +371,8 @@ function AttendanceTemplatesPage({
                             <ClipboardList size={13} strokeWidth={2} aria-hidden="true" />
                             <span>คำตอบ</span>
                           </Button>
-                          {template.status !== "published" ? (
+                          )}
+                          {!template.is_archived && template.status !== "published" ? (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -319,30 +382,47 @@ function AttendanceTemplatesPage({
                               <span>เผยแพร่</span>
                             </Button>
                           ) : null}
-                          <TableActionMenu
-                            label="การจัดการฟอร์มเพิ่มเติม"
-                            items={[
-                              ...(template.status === "published"
-                                ? [
-                                    {
-                                      label: "ปิดรับคำตอบ",
-                                      icon: Ban,
-                                      onClick: () => onToggleFormUsage?.(template.form_id, false)
-                                    }
-                                  ]
-                                : []),
-                              {
-                                label: "ของ/สิทธิ์",
-                                icon: Package,
-                                onClick: () => onOpenItems(template.form_id)
-                              },
-                              {
-                                label: "อีเมล",
-                                icon: Mail,
-                                onClick: () => onOpenEmail(template.form_id)
-                              }
-                            ]}
-                          />
+                          {template.is_archived ? (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => handleRestoreClick(template)}
+                            >
+                              <ArchiveRestore size={13} strokeWidth={2} aria-hidden="true" />
+                              <span>นำกลับ</span>
+                            </Button>
+                          ) : (
+                            <TableActionMenu
+                              label="การจัดการฟอร์มเพิ่มเติม"
+                              items={[
+                                ...(template.status === "published"
+                                  ? [
+                                      {
+                                        label: "ปิดรับคำตอบ",
+                                        icon: Ban,
+                                        onClick: () =>
+                                          onToggleFormUsage?.(template.form_id, false)
+                                      }
+                                    ]
+                                  : []),
+                                {
+                                  label: "ของ/สิทธิ์",
+                                  icon: Package,
+                                  onClick: () => onOpenItems(template.form_id)
+                                },
+                                {
+                                  label: "อีเมล",
+                                  icon: Mail,
+                                  onClick: () => onOpenEmail(template.form_id)
+                                },
+                                {
+                                  label: "เก็บเข้าคลัง",
+                                  icon: Archive,
+                                  onClick: () => handleArchiveClick(template)
+                                }
+                              ]}
+                            />
+                          )}
                         </div>
                       </td>
                     </tr>

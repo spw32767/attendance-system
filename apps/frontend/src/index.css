@@ -1861,6 +1861,21 @@ button:disabled {
   color: var(--text-main);
 }
 
+.ui-toast-action {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--brand);
+  background: transparent;
+  border: 1px solid var(--brand);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.ui-toast-action:hover {
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+}
+
 @keyframes ui-toast-in {
   from {
     opacity: 0;

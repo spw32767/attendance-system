@@ -4,11 +4,13 @@ import {
   Search,
   FileText,
   Pencil,
+  Archive,
+  ArchiveRestore,
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
-import { Button, PageHead } from "../components/ui";
+import { Button, PageHead, useToast } from "../components/ui";
 
 
 
@@ -32,6 +34,8 @@ function ProjectsPage({
   onCreateProject,
   onEditProject,
   onOpenProjectForms,
+  onArchiveProject,
+  onRestoreProject,
   onLogout,
   theme,
   onToggleTheme,
@@ -43,14 +47,26 @@ function ProjectsPage({
 }) {
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(1);
+  const [showArchived, setShowArchived] = useState(false);
+  const [pendingArchiveId, setPendingArchiveId] = useState(null);
+  const toast = useToast();
+
+  const archivedCount = useMemo(
+    () => projects.filter((project) => project.is_archived).length,
+    [projects]
+  );
 
   const filteredProjects = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
+    const visible = showArchived
+      ? projects
+      : projects.filter((project) => !project.is_archived);
+
     if (!keyword) {
-      return projects;
+      return visible;
     }
 
-    return projects.filter((project) => {
+    return visible.filter((project) => {
       const searchable = [
         project.project_code,
         project.project_name,
@@ -63,7 +79,41 @@ function ProjectsPage({
 
       return searchable.includes(keyword);
     });
-  }, [projects, searchText]);
+  }, [projects, searchText, showArchived]);
+
+  const handleArchiveClick = async (project) => {
+    if (pendingArchiveId) {
+      return;
+    }
+    if (!window.confirm(
+      `เก็บโครงการ "${project.project_name}" เข้าคลัง?\n\n` +
+      "โครงการ ฟอร์ม และคำตอบทั้งหมดจะถูกซ่อนจากระบบ แต่ข้อมูลยังคงอยู่ใน DB และสามารถนำกลับมาใช้งานได้"
+    )) {
+      return;
+    }
+    setPendingArchiveId(project.project_id);
+    try {
+      await onArchiveProject?.(project.project_id);
+    } catch (err) {
+      toast.error(err?.message || "เก็บเข้าคลังไม่สำเร็จ");
+    } finally {
+      setPendingArchiveId(null);
+    }
+  };
+
+  const handleRestoreClick = async (project) => {
+    if (pendingArchiveId) {
+      return;
+    }
+    setPendingArchiveId(project.project_id);
+    try {
+      await onRestoreProject?.(project.project_id);
+    } catch (err) {
+      toast.error(err?.message || "นำกลับไม่สำเร็จ");
+    } finally {
+      setPendingArchiveId(null);
+    }
+  };
 
   const totalRows = filteredProjects.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
@@ -120,6 +170,19 @@ function ProjectsPage({
             />
           </div>
           <p className="templates-search-meta">พบ {totalRows} โครงการตามเงื่อนไขปัจจุบัน</p>
+          {archivedCount > 0 || showArchived ? (
+            <label className="checkbox-row compact" style={{ marginLeft: "auto" }}>
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(event) => {
+                  setShowArchived(event.target.checked);
+                  setPage(1);
+                }}
+              />
+              <span>แสดงที่เก็บเข้าคลัง ({archivedCount})</span>
+            </label>
+          ) : null}
         </div>
 
         <div className="templates-table-wrap">
@@ -144,7 +207,10 @@ function ProjectsPage({
                 </tr>
               ) : (
                 pagedProjects.map((project, index) => (
-                  <tr key={project.project_id}>
+                  <tr
+                    key={project.project_id}
+                    style={project.is_archived ? { opacity: 0.55 } : undefined}
+                  >
                     <td className="table-col-index">{startIndex + index + 1}</td>
                     <td className="table-col-primary table-col-left">
                       <div className="table-primary-cell">
@@ -165,35 +231,64 @@ function ProjectsPage({
                     <td className="table-col-date">{formatDateTime(project.updated_at)}</td>
                     <td className="table-col-status">
                       <div className="table-status-readout">
-                        <span
-                          className={`status-pill ${
-                            project.is_active
-                              ? "status-pill-active"
-                              : "status-pill-inactive"
-                          }`}
-                        >
-                          {project.is_active ? "ใช้งาน" : "ปิดใช้งาน"}
-                        </span>
+                        {project.is_archived ? (
+                          <span className="status-pill status-pill-inactive">
+                            อยู่ในคลัง
+                          </span>
+                        ) : (
+                          <span
+                            className={`status-pill ${
+                              project.is_active
+                                ? "status-pill-active"
+                                : "status-pill-inactive"
+                            }`}
+                          >
+                            {project.is_active ? "ใช้งาน" : "ปิดใช้งาน"}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="table-col-actions">
                       <div className="table-actions table-actions-nowrap">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onOpenProjectForms(project.project_id)}
-                        >
-                          <FileText size={13} strokeWidth={2} aria-hidden="true" />
-                          <span>ฟอร์ม</span>
-                        </Button>
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => onEditProject(project.project_id)}
-                        >
-                          <Pencil size={13} strokeWidth={2} aria-hidden="true" />
-                          <span>แก้ไข</span>
-                        </Button>
+                        {project.is_archived ? (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            disabled={pendingArchiveId === project.project_id}
+                            onClick={() => handleRestoreClick(project)}
+                          >
+                            <ArchiveRestore size={13} strokeWidth={2} aria-hidden="true" />
+                            <span>นำกลับ</span>
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onOpenProjectForms(project.project_id)}
+                            >
+                              <FileText size={13} strokeWidth={2} aria-hidden="true" />
+                              <span>ฟอร์ม</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onEditProject(project.project_id)}
+                            >
+                              <Pencil size={13} strokeWidth={2} aria-hidden="true" />
+                              <span>แก้ไข</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={pendingArchiveId === project.project_id}
+                              onClick={() => handleArchiveClick(project)}
+                            >
+                              <Archive size={13} strokeWidth={2} aria-hidden="true" />
+                              <span>เก็บเข้าคลัง</span>
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

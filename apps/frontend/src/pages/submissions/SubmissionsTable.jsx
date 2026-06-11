@@ -133,14 +133,26 @@ function SubmissionsTable({
                           </Button>
                         </>
                       ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onOpenSubmission(row.submission_id)}
-                        >
-                          <ExternalLink size={13} strokeWidth={2} aria-hidden="true" />
-                          <span>ดูรายละเอียด</span>
-                        </Button>
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onOpenSubmission(row.submission_id)}
+                          >
+                            <ExternalLink size={13} strokeWidth={2} aria-hidden="true" />
+                            <span>ดูรายละเอียด</span>
+                          </Button>
+                          {onDeleteEntry ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onDeleteEntry?.(row)}
+                            >
+                              <Trash2 size={13} strokeWidth={2} aria-hidden="true" />
+                              <span>ลบ</span>
+                            </Button>
+                          ) : null}
+                        </>
                       )}
                     </div>
                   </td>

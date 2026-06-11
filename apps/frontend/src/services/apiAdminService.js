@@ -165,7 +165,8 @@ const readCollection = async (path, params) => {
 };
 
 export const apiAdminService = {
-  listProjects: () => readCollection("/admin/projects"),
+  listProjects: (options = {}) =>
+    readCollection("/admin/projects", options.includeArchived ? { includeArchived: 1 } : undefined),
 
   upsertProject: (projectId, payload) =>
     projectId
@@ -178,9 +179,26 @@ export const apiAdminService = {
       body: { is_active: isActive }
     }),
 
-  listForms: () => readCollection("/admin/forms"),
+  archiveProject: (projectId) =>
+    request(`/admin/projects/${projectId}/archive`, { method: "POST", body: {} }),
 
-  listFormsByProject: (projectId) => readCollection(`/admin/projects/${projectId}/forms`),
+  restoreProject: (projectId) =>
+    request(`/admin/projects/${projectId}/restore`, { method: "POST", body: {} }),
+
+  listForms: (options = {}) =>
+    readCollection("/admin/forms", options.includeArchived ? { includeArchived: 1 } : undefined),
+
+  listFormsByProject: (projectId, options = {}) =>
+    readCollection(
+      `/admin/projects/${projectId}/forms`,
+      options.includeArchived ? { includeArchived: 1 } : undefined
+    ),
+
+  archiveForm: (formId) =>
+    request(`/admin/forms/${formId}/archive`, { method: "POST", body: {} }),
+
+  restoreForm: (formId) =>
+    request(`/admin/forms/${formId}/restore`, { method: "POST", body: {} }),
 
   getFormDraft: (formId, projectId) =>
     formId
@@ -228,6 +246,12 @@ export const apiAdminService = {
   deleteSubmission: (submissionId) =>
     request(`/admin/submissions/${submissionId}`, {
       method: "DELETE",
+      body: {}
+    }),
+
+  restoreSubmission: (submissionId) =>
+    request(`/admin/submissions/${submissionId}/restore`, {
+      method: "POST",
       body: {}
     }),
 

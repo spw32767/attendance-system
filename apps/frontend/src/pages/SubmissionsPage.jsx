@@ -16,6 +16,8 @@ function SubmissionsPage({
   onOpenSubmission,
   onUpdateSubmission,
   onSendCheckinEmail,
+  onDeleteEntry,
+  onRestoreEntry,
   onExportSubmissionsExcel,
   onLogout,
   theme,
@@ -30,6 +32,7 @@ function SubmissionsPage({
   const [quickCheckInId, setQuickCheckInId] = useState(null);
   const [sendingEmailId, setSendingEmailId] = useState(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const toast = useToast();
 
   // This page shows ONLY responses people filled in themselves. Pre-registered
@@ -82,6 +85,31 @@ function SubmissionsPage({
       toast.error(error instanceof Error ? error.message : "ไม่สามารถอัปเดตสถานะเช็กอินได้");
     } finally {
       setQuickCheckInId(null);
+    }
+  };
+
+  const handleDelete = async (row) => {
+    if (deletingId) {
+      return;
+    }
+    const label = row?.respondent_name || row?.submission_code || "คำตอบนี้";
+    if (!window.confirm(`ลบคำตอบของ "${label}"?\n\nกู้คืนได้ใน 8 วินาทีหลังจากนี้`)) {
+      return;
+    }
+    setDeletingId(row.submission_id);
+    try {
+      await onDeleteEntry?.(row.submission_id);
+      toast.undoable("ลบคำตอบแล้ว", async () => {
+        try {
+          await onRestoreEntry?.(row.submission_id);
+        } catch (err) {
+          toast.error(err?.message || "กู้คืนไม่สำเร็จ");
+        }
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "ลบไม่สำเร็จ");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -152,6 +180,7 @@ function SubmissionsPage({
           sendingEmailId={sendingEmailId}
           onSendEmail={handleSendEmail}
           onOpenSubmission={onOpenSubmission}
+          onDeleteEntry={onDeleteEntry ? handleDelete : undefined}
         />
       </section>
 

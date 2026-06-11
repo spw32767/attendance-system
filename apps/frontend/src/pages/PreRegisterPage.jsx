@@ -22,6 +22,7 @@ function PreRegisterPage({
   onCreateEntry,
   onUpdateEntry,
   onDeleteEntry,
+  onRestoreEntry,
   onPreviewImportSubmissionsExcel,
   onImportSubmissionsExcel,
   onDownloadImportTemplate,
@@ -134,10 +135,21 @@ function PreRegisterPage({
       return;
     }
     setDeleteBusy(true);
+    const deletedId = deletingEntry.submission_id;
     try {
-      await onDeleteEntry(deletingEntry.submission_id);
-      toast.success("ลบรายชื่อแล้ว");
+      await onDeleteEntry(deletedId);
       setDeletingEntry(null);
+      // Offer a quick reversal — the backend already supports
+      // POST /admin/submissions/:id/restore. The toast auto-dismisses
+      // after 8s; we don't fire-and-forget the restore so if it fails
+      // (e.g. row already purged) the user sees the error.
+      toast.undoable("ลบคำตอบแล้ว", async () => {
+        try {
+          await onRestoreEntry?.(deletedId);
+        } catch (err) {
+          toast.error(err?.message || "กู้คืนไม่สำเร็จ");
+        }
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "ลบไม่สำเร็จ");
     } finally {

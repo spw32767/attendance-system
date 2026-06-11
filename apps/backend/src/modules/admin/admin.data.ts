@@ -315,7 +315,11 @@ const getNextId = async (tableName: string, idColumn: string, connection?: PoolC
   return Number(rows[0]?.next_id || 1);
 };
 
-const listProjectsQuery = `
+// `deleted_at` is the archive marker — archived projects/forms stay in the
+// DB but are excluded from every admin list and from the public form
+// resolver. listProjects/listForms take an `includeArchived` flag so the
+// admin UI can show a "ที่เก็บเข้าคลัง" section for restore.
+const buildListProjectsQuery = (includeArchived: boolean) => `
   SELECT
     project_id,
     project_code,
@@ -324,16 +328,25 @@ const listProjectsQuery = `
     source_url,
     description,
     is_active,
+    deleted_at,
     created_at,
     updated_at
   FROM proj_projects
-  WHERE deleted_at IS NULL
+  ${includeArchived ? "" : "WHERE deleted_at IS NULL"}
   ORDER BY project_id ASC
 `;
 
-const getFormRows = async (projectId?: number | null, connection?: PoolConnection) => {
+const getFormRows = async (
+  projectId?: number | null,
+  connection?: PoolConnection,
+  options?: { includeArchived?: boolean }
+) => {
   const params: unknown[] = [];
   const whereProject = projectId ? "AND f.project_id = ?" : "";
+  // includeArchived only lifts the form-level archive filter. We still hide
+  // forms whose *parent project* is archived so the "archived forms" view
+  // doesn't get cluttered by forms that are only hidden transitively.
+  const whereFormArchive = options?.includeArchived ? "" : "AND f.deleted_at IS NULL";
 
   if (projectId) {
     params.push(projectId);
@@ -357,12 +370,13 @@ const getFormRows = async (projectId?: number | null, connection?: PoolConnectio
         f.success_title,
         f.success_message,
         f.settings_json,
+        f.deleted_at,
         f.created_at,
         f.updated_at
       FROM form_forms f
       INNER JOIN proj_projects p ON p.project_id = f.project_id
-      WHERE f.deleted_at IS NULL
-        AND p.deleted_at IS NULL
+      WHERE p.deleted_at IS NULL
+        ${whereFormArchive}
         ${whereProject}
       ORDER BY f.form_id ASC
     `,
@@ -391,6 +405,8 @@ const mapFormSummary = (row: AnyRow) => {
       row.send_submission_email == null ? true : toBoolean(row.send_submission_email),
     send_checkin_email:
       row.send_checkin_email == null ? true : toBoolean(row.send_checkin_email),
+    is_archived: row.deleted_at != null,
+    archived_at: row.deleted_at ? toDateTime(row.deleted_at) : null,
     start_at: toDateTime(row.start_at),
     end_at: toDateTime(row.end_at),
     share_key: settings.share_key || toShareKey(),
@@ -771,8 +787,8 @@ const dispatchPendingEmail = async (pendingEmail: PendingEmailDispatch | null) =
   }
 };
 
-export const listProjects = async () => {
-  const rows = await queryRows<AnyRow>(listProjectsQuery);
+export const listProjects = async (options?: { includeArchived?: boolean }) => {
+  const rows = await queryRows<AnyRow>(buildListProjectsQuery(options?.includeArchived === true));
   return rows.map((row) => ({
     project_id: Number(row.project_id),
     project_code: row.project_code || "",
@@ -782,9 +798,29 @@ export const listProjects = async () => {
     source_url: row.source_url || "",
     description: row.description || "",
     is_active: toBoolean(row.is_active),
+    is_archived: row.deleted_at != null,
+    archived_at: row.deleted_at ? toDateTime(row.deleted_at) : null,
     created_at: toDateTime(row.created_at),
     updated_at: toDateTime(row.updated_at)
   }));
+};
+
+export const archiveProject = async (projectId: number) => {
+  const result = await execute(
+    `UPDATE proj_projects SET deleted_at = CURRENT_TIMESTAMP
+     WHERE project_id = ? AND deleted_at IS NULL`,
+    [projectId]
+  );
+  return { ok: result.affectedRows > 0 };
+};
+
+export const restoreProject = async (projectId: number) => {
+  const result = await execute(
+    `UPDATE proj_projects SET deleted_at = NULL
+     WHERE project_id = ? AND deleted_at IS NOT NULL`,
+    [projectId]
+  );
+  return { ok: result.affectedRows > 0 };
 };
 
 export const upsertProject = async (projectId: number | null, payload: AnyPayload) => {
@@ -845,14 +881,35 @@ export const setProjectUsage = async (projectId: number, isActive: boolean) => {
   );
 };
 
-export const listForms = async () => {
-  const rows = await getFormRows();
+export const listForms = async (options?: { includeArchived?: boolean }) => {
+  const rows = await getFormRows(null, undefined, options);
   return rows.map(mapFormSummary);
 };
 
-export const listFormsByProject = async (projectId: number) => {
-  const rows = await getFormRows(projectId);
+export const listFormsByProject = async (
+  projectId: number,
+  options?: { includeArchived?: boolean }
+) => {
+  const rows = await getFormRows(projectId, undefined, options);
   return rows.map(mapFormSummary);
+};
+
+export const archiveForm = async (formId: number) => {
+  const result = await execute(
+    `UPDATE form_forms SET deleted_at = CURRENT_TIMESTAMP
+     WHERE form_id = ? AND deleted_at IS NULL`,
+    [formId]
+  );
+  return { ok: result.affectedRows > 0 };
+};
+
+export const restoreForm = async (formId: number) => {
+  const result = await execute(
+    `UPDATE form_forms SET deleted_at = NULL
+     WHERE form_id = ? AND deleted_at IS NOT NULL`,
+    [formId]
+  );
+  return { ok: result.affectedRows > 0 };
 };
 
 export const getFormDraft = async (formId: number | null, projectId: number | null) => {
@@ -1842,27 +1899,45 @@ export const updateSubmissionAnswers = async (
   });
 
 /**
- * Soft-delete a pre-registered submission (import_excel / manual only).
+ * Soft-delete a submission. Used to be limited to pre-registered rows
+ * (import_excel / manual) but admins also need to clean up test or spam
+ * public submissions, and they can restore from the undo-toast within
+ * the cooldown window. Hides the row from every admin list via the
+ * deleted_at IS NULL filter that's already enforced everywhere.
  */
 export const deleteSubmission = async (
   submissionId: number
 ): Promise<{ ok: false; reason: string } | { ok: true }> => {
   const rows = await queryRows<AnyRow>(
-    `SELECT submission_id, source_type FROM entry_submissions
+    `SELECT submission_id FROM entry_submissions
       WHERE submission_id = ? AND deleted_at IS NULL LIMIT 1`,
     [submissionId]
   );
-  const sub = rows[0];
-  if (!sub) {
+  if (rows.length === 0) {
     return { ok: false, reason: "not_found" };
-  }
-  if (sub.source_type !== "import_excel" && sub.source_type !== "manual") {
-    return { ok: false, reason: "not_deletable" };
   }
   await execute(
     `UPDATE entry_submissions SET deleted_at = CURRENT_TIMESTAMP WHERE submission_id = ?`,
     [submissionId]
   );
+  return { ok: true };
+};
+
+/**
+ * Clear the deleted_at flag from a single submission. Powers the
+ * "เลิกทำ" button on the delete-confirmation toast.
+ */
+export const restoreSubmission = async (
+  submissionId: number
+): Promise<{ ok: false; reason: string } | { ok: true }> => {
+  const result = await execute(
+    `UPDATE entry_submissions SET deleted_at = NULL
+     WHERE submission_id = ? AND deleted_at IS NOT NULL`,
+    [submissionId]
+  );
+  if (result.affectedRows === 0) {
+    return { ok: false, reason: "not_found" };
+  }
   return { ok: true };
 };
 
