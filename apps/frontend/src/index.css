@@ -1423,6 +1423,62 @@ button:disabled {
   border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
 }
 
+/* Pre-submit validation summary — lists each problem field by name so the
+   respondent doesn't have to scroll back up to figure out what went wrong. */
+.public-form-error-summary {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
+}
+
+.public-form-error-summary-title {
+  margin: 0 0 6px;
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+.public-form-error-summary-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-sm);
+}
+
+.public-form-error-summary-link {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 4px 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+  width: 100%;
+}
+
+.public-form-error-summary-link:hover,
+.public-form-error-summary-link:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+
+.public-form-error-summary-field {
+  font-weight: 700;
+}
+
+.public-form-error-summary-sep {
+  opacity: 0.6;
+}
+
 .public-form-card h1 {
   margin: 12px 0 10px;
   letter-spacing: -0.02em;

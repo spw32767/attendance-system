@@ -505,9 +505,30 @@ function PublicFormPage({
           ) : null}
 
           {hasValidationErrors && Object.keys(errors).length > 0 ? (
-            <p className="public-form-submit-error" role="alert">
-              กรุณาตรวจสอบช่องที่ทำเครื่องหมายไว้ด้านบน แล้วลองส่งอีกครั้ง
-            </p>
+            <div className="public-form-error-summary" role="alert">
+              <p className="public-form-error-summary-title">
+                ยังส่งไม่ได้ — มี {Object.keys(errors).length} ช่องที่ต้องแก้ไข
+              </p>
+              <ul className="public-form-error-summary-list">
+                {orderedFields
+                  .filter((field) => errors[field.id])
+                  .map((field) => (
+                    <li key={field.id}>
+                      <button
+                        type="button"
+                        className="public-form-error-summary-link"
+                        onClick={() => focusFieldById(field.id)}
+                      >
+                        <span className="public-form-error-summary-field">
+                          {field.field_label || "คำถาม"}
+                        </span>
+                        <span className="public-form-error-summary-sep">—</span>
+                        <span>{errors[field.id]}</span>
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            </div>
           ) : null}
 
           <div className="public-form-submit-row">
