@@ -25,6 +25,9 @@ pnpm-debug.log*
 .idea/
 *.swp
 
+# AI agent skills/config (e.g. impeccable)
+.claude/
+
 # OS files
 .DS_Store
 Thumbs.db
