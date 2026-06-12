@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { CheckCheck, Pencil, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
+import { CheckCheck, Pencil, Plus, RotateCcw, Search, Trash2, Package } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
-import { Button, Modal, PageHead } from "../components/ui";
+import { Button, Modal, PageHead, TableEmpty } from "../components/ui";
 
 const CLAIM_STATUS_META = {
   pending: { label: "รอรับ", className: "status-pill status-pill-draft" },
@@ -264,7 +264,7 @@ function ItemsClaimsPage({
         </div>
 
         <div className="templates-table-wrap">
-          <table className="templates-table table-first-col-left">
+          <table className="templates-table table-first-col-left table-cards">
             <thead>
               {mode === "items" ? (
                 <tr>
@@ -291,32 +291,37 @@ function ItemsClaimsPage({
             </thead>
             <tbody>
               {filteredRows.length === 0 ? (
-                <tr>
-                  <td className="empty-row" colSpan={mode === "items" ? 7 : 8}>
-                    ไม่พบข้อมูล
-                  </td>
-                </tr>
+                <TableEmpty
+                  colSpan={mode === "items" ? 7 : 8}
+                  icon={<Package size={20} aria-hidden="true" />}
+                  title={mode === "items" ? "ยังไม่มีรายการของ" : "ยังไม่มีการรับของ"}
+                  description={
+                    mode === "items"
+                      ? "สร้างรายการของรางวัล/ของที่ระลึกเพื่อให้ผู้เข้าร่วมรับสิทธิ์"
+                      : "เมื่อมีผู้รับของ รายการจะแสดงที่นี่"
+                  }
+                />
               ) : mode === "items" ? (
                 filteredRows.map((item) => (
                   <tr key={item.item_id}>
-                    <td className="table-col-secondary">
+                    <td className="table-col-secondary" data-label="Item Code">
                       <span className="table-code">{item.item_code}</span>
                     </td>
-                    <td className="table-col-primary table-col-left">
+                    <td className="table-col-primary table-col-left" data-label="รายการ">
                       <div className="table-primary-cell">
                         <p>{item.item_name}</p>
                         <small>{item.item_type}</small>
                       </div>
                     </td>
-                    <td className="table-col-meta">
+                    <td className="table-col-meta" data-label="โครงการ/ฟอร์ม">
                       <div className="table-primary-cell">
                         <p>{item.project_name}</p>
                         <small>{item.form_name}</small>
                       </div>
                     </td>
-                    <td className="table-col-secondary">{item.item_type}</td>
-                    <td className="table-col-secondary">{item.default_qty}</td>
-                    <td className="table-col-status">
+                    <td className="table-col-secondary" data-label="ประเภท">{item.item_type}</td>
+                    <td className="table-col-secondary" data-label="จำนวนเริ่มต้น">{item.default_qty}</td>
+                    <td className="table-col-status" data-label="สถานะ">
                       <div className="table-status-control">
                         <label className="toggle-switch-label table-status-switch">
                           <input
@@ -334,7 +339,7 @@ function ItemsClaimsPage({
                         </label>
                       </div>
                     </td>
-                    <td className="table-col-actions">
+                    <td className="table-col-actions" data-label="การจัดการ">
                       <div className="table-actions">
                         <Button variant="ghost" size="sm" onClick={() => openEdit(item)}>
                           <Pencil size={13} strokeWidth={2} aria-hidden="true" />
@@ -372,11 +377,11 @@ function ItemsClaimsPage({
 
                   return (
                     <tr key={claim.claim_id}>
-                      <td className="table-col-secondary">
+                      <td className="table-col-secondary" data-label="Claim Token">
                         <span className="table-code">{claim.claim_token}</span>
                       </td>
-                      <td className="table-col-secondary">{claim.submission_code}</td>
-                      <td className="table-col-meta">
+                      <td className="table-col-secondary" data-label="Submission">{claim.submission_code}</td>
+                      <td className="table-col-meta" data-label="ผู้รับ">
                         <div className="table-primary-cell">
                           <p>{claim.respondent_name && claim.respondent_name !== "-" ? claim.respondent_name : "ไม่ระบุชื่อ"}</p>
                           {claim.respondent_email && claim.respondent_email !== "-" ? (
@@ -384,29 +389,29 @@ function ItemsClaimsPage({
                           ) : null}
                         </div>
                       </td>
-                      <td className="table-col-primary table-col-left">
+                      <td className="table-col-primary table-col-left" data-label="รายการ">
                         <div className="table-primary-cell">
                           <p>{claim.item_name}</p>
                           <small>{claim.received_at ? "บันทึกเวลารับแล้ว" : "รอยืนยันการรับของ"}</small>
                         </div>
                       </td>
-                      <td className="table-col-meta">
+                      <td className="table-col-meta" data-label="โครงการ/ฟอร์ม">
                         <div className="table-primary-cell">
                           <p>{claim.project_name}</p>
                           <small>{claim.form_name}</small>
                         </div>
                       </td>
-                      <td className="table-col-status">
+                      <td className="table-col-status" data-label="สถานะ">
                         <div className="table-status-readout">
                           <span className={statusMeta.className}>{statusMeta.label}</span>
                         </div>
                       </td>
-                      <td className="table-col-date">
+                      <td className="table-col-date" data-label="เวลารับของ">
                         {claim.received_at
                           ? new Date(claim.received_at).toLocaleString("th-TH")
                           : "-"}
                       </td>
-                      <td className="table-col-actions">
+                      <td className="table-col-actions" data-label="การจัดการ">
                         <div className="table-actions">
                           <Button variant="primary" size="sm" onClick={primaryAction.onClick}>
                             <PrimaryActionIcon size={13} strokeWidth={2} aria-hidden="true" />

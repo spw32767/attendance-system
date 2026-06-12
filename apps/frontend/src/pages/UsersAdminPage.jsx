@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { KeyRound, Plus } from "lucide-react";
+import { KeyRound, Plus, Users, ShieldCheck } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
-import { Button, Modal, PageHead } from "../components/ui";
+import { Button, Modal, PageHead, TableEmpty } from "../components/ui";
 
 const ROLE_OPTIONS = [
   { value: "super_admin", label: "super_admin" },
@@ -156,7 +156,7 @@ function UsersAdminPage({
       <section className="templates-card section-stack-gap-sm">
         <div className="templates-table-wrap">
           {activeTab === "users" ? (
-            <table className="templates-table table-first-col-left">
+            <table className="templates-table table-first-col-left table-cards">
               <thead>
                 <tr>
                   <th className="table-col-primary table-col-left">ชื่อ</th>
@@ -169,22 +169,23 @@ function UsersAdminPage({
               </thead>
               <tbody>
                 {users.length === 0 ? (
-                  <tr>
-                    <td className="empty-row" colSpan={6}>
-                      ยังไม่มีผู้ใช้งาน
-                    </td>
-                  </tr>
+                  <TableEmpty
+                    colSpan={6}
+                    icon={<Users size={20} aria-hidden="true" />}
+                    title="ยังไม่มีผู้ใช้งาน"
+                    description="เพิ่มผู้ใช้งานเพื่อให้ทีมเข้าถึงระบบได้"
+                  />
                 ) : (
                   users.map((user) => (
                   <tr key={user.user_id}>
-                    <td className="table-col-primary table-col-left">
+                    <td className="table-col-primary table-col-left" data-label="ชื่อ">
                       <div className="table-primary-cell">
                         <p>{user.display_name}</p>
                         <small>{user.user_id}</small>
                       </div>
                     </td>
-                    <td className="table-col-meta">{user.email}</td>
-                    <td className="table-col-secondary">
+                    <td className="table-col-meta" data-label="อีเมล">{user.email}</td>
+                    <td className="table-col-secondary" data-label="บทบาท">
                       <select
                         className="select-control"
                         value={user.role_code}
@@ -199,8 +200,8 @@ function UsersAdminPage({
                         ))}
                       </select>
                     </td>
-                    <td className="table-col-secondary">{user.login_method}</td>
-                    <td className="table-col-status">
+                    <td className="table-col-secondary" data-label="Login">{user.login_method}</td>
+                    <td className="table-col-status" data-label="สถานะ">
                       <div className="table-status-control">
                         <label className="toggle-switch-label table-status-switch">
                           <input
@@ -220,7 +221,7 @@ function UsersAdminPage({
                         </label>
                       </div>
                     </td>
-                    <td className="table-col-actions">
+                    <td className="table-col-actions" data-label="การจัดการ">
                       <Button variant="ghost" size="sm" onClick={() => openReset(user)}>
                         <KeyRound size={13} strokeWidth={2} aria-hidden="true" />
                         <span>รีเซ็ตรหัสผ่าน</span>
@@ -232,7 +233,7 @@ function UsersAdminPage({
               </tbody>
             </table>
           ) : (
-            <table className="templates-table table-first-col-left">
+            <table className="templates-table table-first-col-left table-cards">
               <thead>
                 <tr>
                   <th className="table-col-meta">Email</th>
@@ -244,24 +245,25 @@ function UsersAdminPage({
               </thead>
               <tbody>
                 {ssoAccounts.length === 0 ? (
-                  <tr>
-                    <td className="empty-row" colSpan={5}>
-                      ยังไม่มีบัญชี SSO ที่เชื่อมต่อ
-                    </td>
-                  </tr>
+                  <TableEmpty
+                    colSpan={5}
+                    icon={<ShieldCheck size={20} aria-hidden="true" />}
+                    title="ยังไม่มีบัญชี SSO ที่เชื่อมต่อ"
+                    description="บัญชี SSO ที่เชื่อมต่อแล้วจะแสดงที่นี่"
+                  />
                 ) : (
                   ssoAccounts.map((account) => (
                   <tr key={account.sso_account_id}>
-                    <td className="table-col-meta">{account.email}</td>
-                    <td className="table-col-secondary">{account.provider_name}</td>
-                    <td className="table-col-meta">{account.provider_user_id}</td>
-                    <td className="table-col-primary table-col-left">
+                    <td className="table-col-meta" data-label="Email">{account.email}</td>
+                    <td className="table-col-secondary" data-label="Provider">{account.provider_name}</td>
+                    <td className="table-col-meta" data-label="Provider User ID">{account.provider_user_id}</td>
+                    <td className="table-col-primary table-col-left" data-label="ผู้ใช้งาน">
                       <div className="table-primary-cell">
                         <p>{usersById[account.user_id]?.display_name || account.display_name}</p>
                         <small>{account.provider_name}</small>
                       </div>
                     </td>
-                    <td className="table-col-status">
+                    <td className="table-col-status" data-label="สถานะ">
                       <div className="table-status-readout">
                         <span
                           className={`status-pill ${

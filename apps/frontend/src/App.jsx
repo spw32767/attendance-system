@@ -785,9 +785,14 @@ function App() {
   };
 
   const handleToggleProjectUsage = async (projectId, isActive) => {
-    await adminDataAdapter.setProjectUsage(projectId, isActive);
-    const [nextProjects] = await Promise.all([adminDataAdapter.listProjects({ includeArchived: true })]);
-    setProjects(nextProjects);
+    try {
+      await adminDataAdapter.setProjectUsage(projectId, isActive);
+      const [nextProjects] = await Promise.all([adminDataAdapter.listProjects({ includeArchived: true })]);
+      setProjects(nextProjects);
+      toast.success(isActive ? "เปิดใช้งานโครงการแล้ว" : "ปิดใช้งานโครงการแล้ว");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "อัปเดตสถานะโครงการไม่สำเร็จ");
+    }
   };
 
   const handleArchiveProject = async (projectId) => {

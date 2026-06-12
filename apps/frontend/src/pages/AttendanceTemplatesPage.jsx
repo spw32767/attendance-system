@@ -14,9 +14,10 @@ import {
   Globe,
   Ban,
   Archive,
-  ArchiveRestore
+  ArchiveRestore,
+  FileText
 } from "lucide-react";
-import { Button, ConfirmDialog, PageHead, useToast } from "../components/ui";
+import { Button, ConfirmDialog, FlashPill, PageHead, TableEmpty, useToast } from "../components/ui";
 import AdminLayout from "../components/AdminLayout";
 import TableActionMenu from "../components/TableActionMenu";
 
@@ -86,6 +87,7 @@ function AttendanceTemplatesPage({
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(1);
   const [copiedId, setCopiedId] = useState(null);
+  const [pendingPublishId, setPendingPublishId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
@@ -120,6 +122,17 @@ function AttendanceTemplatesPage({
       await onRestoreForm?.(template.form_id);
     } catch (err) {
       toast.error(err?.message || "นำกลับไม่สำเร็จ");
+    }
+  };
+
+  // Wrap the publish/close toggle to show a "working" state on the control
+  // while the existing handler runs (it owns the success/error toast).
+  const handleTogglePublish = async (formId, next) => {
+    setPendingPublishId(formId);
+    try {
+      await onToggleFormUsage?.(formId, next);
+    } finally {
+      setPendingPublishId(null);
     }
   };
 
@@ -258,7 +271,7 @@ function AttendanceTemplatesPage({
         </div>
 
         <div className="templates-table-wrap">
-          <table className="templates-table forms-table">
+          <table className="templates-table forms-table table-cards">
             <thead>
               <tr>
                 <th className="table-col-index">#</th>
@@ -272,13 +285,16 @@ function AttendanceTemplatesPage({
             </thead>
             <tbody>
               {pagedTemplates.length === 0 ? (
-                <tr>
-                  <td className="empty-row" colSpan={7}>
-                    {searchText.trim()
-                      ? "ไม่พบฟอร์มที่ตรงกับคำค้นหา"
-                      : "ยังไม่มีฟอร์มในโครงการนี้ — กดปุ่ม “+ สร้างฟอร์ม” เพื่อเริ่มต้น"}
-                  </td>
-                </tr>
+                <TableEmpty
+                  colSpan={7}
+                  icon={<FileText size={20} aria-hidden="true" />}
+                  title={searchText.trim() ? "ไม่พบฟอร์มที่ตรงกับคำค้นหา" : "ยังไม่มีฟอร์มในโครงการนี้"}
+                  description={
+                    searchText.trim()
+                      ? "ลองปรับคำค้นหา หรือล้างตัวกรองเพื่อดูทั้งหมด"
+                      : "กดปุ่ม “+ สร้างฟอร์ม” เพื่อเริ่มต้น"
+                  }
+                />
               ) : (
                 pagedTemplates.map((template, index) => {
                   const statusMeta = STATUS_META[template.status] || STATUS_META.draft;
@@ -290,13 +306,13 @@ function AttendanceTemplatesPage({
                       style={template.is_archived ? { opacity: 0.55 } : undefined}
                     >
                       <td className="table-col-index">{rowNumber}</td>
-                      <td className="table-col-primary table-col-left">
+                      <td className="table-col-primary table-col-left" data-label="ฟอร์ม">
                         <div className="table-primary-cell">
                           <p>{template.form_name}</p>
                           <small>{template.status === "published" ? "พร้อมเผยแพร่" : "ต้องตรวจสอบก่อนเปิดใช้งาน"}</small>
                         </div>
                       </td>
-                      <td className="table-col-meta">
+                      <td className="table-col-meta" data-label="ลิงก์แบบฟอร์ม">
                         {template.public_path ? (
                           <div className="template-url">
                             <div className="template-url-row">
@@ -339,25 +355,27 @@ function AttendanceTemplatesPage({
                           <span>-</span>
                         )}
                       </td>
-                      <td className="table-col-date">
+                      <td className="table-col-date" data-label="ช่วงเวลาเปิด-ปิด">
                         <div className="table-primary-cell">
                           <p>เริ่ม: {formatDateTime(template.start_at)}</p>
                           <small>สิ้นสุด: {formatDateTime(template.end_at)}</small>
                         </div>
                       </td>
-                      <td className="table-col-date">{formatDateTime(template.updated_at)}</td>
-                      <td className="table-col-status">
+                      <td className="table-col-date" data-label="อัปเดตล่าสุด">{formatDateTime(template.updated_at)}</td>
+                      <td className="table-col-status" data-label="สถานะ">
                         <div className="table-status-readout">
                           {template.is_archived ? (
                             <span className="status-pill status-pill-inactive">
                               อยู่ในคลัง
                             </span>
                           ) : (
-                            <span className={statusMeta.className}>{statusMeta.label}</span>
+                            <FlashPill value={template.status} className={statusMeta.className}>
+                              {statusMeta.label}
+                            </FlashPill>
                           )}
                         </div>
                       </td>
-                      <td className="table-col-actions-wide">
+                      <td className="table-col-actions-wide" data-label="การจัดการ">
                         <div className="table-actions">
                           {template.is_archived ? null : (
                           <Button
@@ -383,7 +401,8 @@ function AttendanceTemplatesPage({
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => onToggleFormUsage?.(template.form_id, true)}
+                              loading={pendingPublishId === template.form_id}
+                              onClick={() => handleTogglePublish(template.form_id, true)}
                             >
                               <Globe size={13} strokeWidth={2} aria-hidden="true" />
                               <span>เผยแพร่</span>
@@ -408,7 +427,7 @@ function AttendanceTemplatesPage({
                                         label: "ปิดรับคำตอบ",
                                         icon: Ban,
                                         onClick: () =>
-                                          onToggleFormUsage?.(template.form_id, false)
+                                          handleTogglePublish(template.form_id, false)
                                       }
                                     ]
                                   : []),

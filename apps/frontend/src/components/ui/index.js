@@ -9,4 +9,6 @@ export { default as PageHead } from "./PageHead";
 export { default as EmptyState } from "./EmptyState";
 export { default as Skeleton } from "./Skeleton";
 export { default as Spinner } from "./Spinner";
+export { default as FlashPill } from "./FlashPill";
+export { default as TableEmpty } from "./TableEmpty";
 export { ToastProvider, useToast } from "./Toast";

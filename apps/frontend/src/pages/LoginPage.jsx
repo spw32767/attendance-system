@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LogIn, Moon, Sun } from "lucide-react";
+import { LogIn, Moon, Sun, ClipboardCheck } from "lucide-react";
 import { Button } from "../components/ui";
 import { apiAdminService } from "../services/apiAdminService";
 
@@ -41,6 +41,9 @@ function LoginPage({ onLogin, theme, onToggleTheme }) {
 
       <section className="login-card">
         <header className="login-card-head">
+          <span className="login-brand" aria-hidden="true">
+            <ClipboardCheck size={22} strokeWidth={2} />
+          </span>
           <h1>เข้าสู่ระบบแอดมิน</h1>
           <p>ใช้บัญชีภายในของคุณเพื่อเข้าใช้งานแดชบอร์ดและจัดการแบบฟอร์ม</p>
         </header>

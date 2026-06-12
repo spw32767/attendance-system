@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Mail, MailX } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
-import { Button, PageHead } from "../components/ui";
+import { Button, PageHead, TableEmpty } from "../components/ui";
 
 // Two flows currently emit emails. Keep these in sync with the backend
 // constants in admin.data.ts (DEFAULT_SUBMISSION_EMAIL_TEMPLATE / DEFAULT_CHECKIN_EMAIL_TEMPLATE).
@@ -335,7 +335,7 @@ function EmailCenterPage({
 
         <div className="templates-table-wrap">
           {activeTab === "templates" ? (
-            <table className="templates-table table-first-col-left">
+            <table className="templates-table table-first-col-left table-cards">
               <thead>
                 <tr>
                   <th className="table-col-primary table-col-left">Template</th>
@@ -346,27 +346,35 @@ function EmailCenterPage({
                 </tr>
               </thead>
               <tbody>
-                {visibleTemplates.map((template) => (
+                {visibleTemplates.length === 0 ? (
+                  <TableEmpty
+                    colSpan={5}
+                    icon={<Mail size={20} aria-hidden="true" />}
+                    title="ยังไม่มีเทมเพลตอีเมล"
+                    description="สร้างเทมเพลตเพื่อส่งอีเมลยืนยันและแจ้งเตือนให้ผู้เข้าร่วม"
+                  />
+                ) : (
+                  visibleTemplates.map((template) => (
                   <tr key={template.email_template_id}>
-                    <td className="table-col-primary table-col-left">
+                    <td className="table-col-primary table-col-left" data-label="Template">
                       <div className="table-primary-cell">
                         <p>{template.template_name}</p>
                         <small>{template.is_active ? "พร้อมใช้งาน" : "ปิดใช้งานอยู่"}</small>
                       </div>
                     </td>
-                    <td className="table-col-secondary">
+                    <td className="table-col-secondary" data-label="Notification">
                       <div className="table-primary-cell">
                         <p>{notificationLabel(template.notification_code)}</p>
                         <small>{template.notification_code}</small>
                       </div>
                     </td>
-                    <td className="table-col-meta">
+                    <td className="table-col-meta" data-label="โครงการ/ฟอร์ม">
                       <div className="table-primary-cell">
                         <p>{template.project_name}</p>
                         <small>{template.form_name}</small>
                       </div>
                     </td>
-                    <td className="table-col-status">
+                    <td className="table-col-status" data-label="สถานะ">
                       <div className="table-status-readout">
                         <span
                           className={`status-pill ${
@@ -377,7 +385,7 @@ function EmailCenterPage({
                         </span>
                       </div>
                     </td>
-                    <td className="table-col-actions">
+                    <td className="table-col-actions" data-label="การจัดการ">
                       <div className="table-actions">
                         <Button
                           variant="primary"
@@ -394,11 +402,12 @@ function EmailCenterPage({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           ) : (
-            <table className="templates-table table-first-col-left">
+            <table className="templates-table table-first-col-left table-cards">
               <thead>
                 <tr>
                   <th className="table-col-date">เวลา</th>
@@ -409,29 +418,38 @@ function EmailCenterPage({
                 </tr>
               </thead>
               <tbody>
-                {visibleLogs.map((log) => (
+                {visibleLogs.length === 0 ? (
+                  <TableEmpty
+                    colSpan={5}
+                    icon={<MailX size={20} aria-hidden="true" />}
+                    title="ยังไม่มีประวัติการส่งอีเมล"
+                    description="เมื่อระบบส่งอีเมล ประวัติการส่งจะแสดงที่นี่"
+                  />
+                ) : (
+                  visibleLogs.map((log) => (
                   <tr key={log.email_log_id}>
-                    <td className="table-col-date">{new Date(log.created_at).toLocaleString("th-TH")}</td>
-                    <td className="table-col-meta">{log.recipient_email}</td>
-                    <td className="table-col-secondary">
+                    <td className="table-col-date" data-label="เวลา">{new Date(log.created_at).toLocaleString("th-TH")}</td>
+                    <td className="table-col-meta" data-label="ผู้รับ">{log.recipient_email}</td>
+                    <td className="table-col-secondary" data-label="Notification">
                       <div className="table-primary-cell">
                         <p>{notificationLabel(log.notification_code)}</p>
                         <small>{log.notification_code}</small>
                       </div>
                     </td>
-                    <td className="table-col-meta">
+                    <td className="table-col-meta" data-label="โครงการ/ฟอร์ม">
                       <div className="table-primary-cell">
                         <p>{log.project_name}</p>
                         <small>{log.form_name}</small>
                       </div>
                     </td>
-                    <td className="table-col-status">
+                    <td className="table-col-status" data-label="ผลการส่ง">
                       <div className="table-status-readout">
                         <span className="status-pill status-pill-active">{log.send_status}</span>
                       </div>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           )}

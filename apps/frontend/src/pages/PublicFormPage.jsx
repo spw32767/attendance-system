@@ -1,6 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Moon, Send, Sun } from "lucide-react";
+import {
+  Moon,
+  Send,
+  Sun,
+  FileQuestion,
+  AlertCircle,
+  Lock,
+  Clock,
+  CalendarX2
+} from "lucide-react";
 import { Button, EmptyState, Spinner } from "../components/ui";
+
+const EMPTY_ICONS = {
+  not_found: FileQuestion,
+  error: AlertCircle,
+  closed: Lock,
+  not_started: Clock,
+  ended: CalendarX2
+};
 
 const EMPTY_MESSAGES = {
   not_found: {
@@ -268,10 +285,12 @@ function PublicFormPage({
 
   if (formStatus !== "open" || !formData) {
     const message = EMPTY_MESSAGES[formStatus] || EMPTY_MESSAGES.closed;
+    const StatusIcon = EMPTY_ICONS[formStatus] || EMPTY_ICONS.closed;
     return (
       <div className="public-form-shell">
         <section className="public-form-card public-form-card-status">
           <EmptyState
+            icon={<StatusIcon size={22} aria-hidden="true" />}
             title={message.title}
             description={message.description}
             action={

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronRight, Eye, Folder, Pencil, Plus } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
-import { Button, EmptyState, Modal, PageHead } from "../components/ui";
+import { Button, EmptyState, FlashPill, Modal, PageHead } from "../components/ui";
 
 function AdminDashboardPage({
   onLogout,
@@ -24,6 +24,33 @@ function AdminDashboardPage({
   const [previewDraft, setPreviewDraft] = useState(null);
   const [previewError, setPreviewError] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  // Track which toggle is mid-request so we can show a "working" state while
+  // the existing mutation+refetch runs (purely visual; the handlers in App.jsx
+  // are unchanged and remain the source of truth for the settled state).
+  const [pendingProjectId, setPendingProjectId] = useState(null);
+  const [pendingFormId, setPendingFormId] = useState(null);
+
+  const handleProjectToggle = async (projectId, checked) => {
+    setPendingProjectId(projectId);
+    try {
+      await onToggleProjectUsage(projectId, checked);
+    } catch {
+      // The underlying handler owns error reporting/state; just clear pending.
+    } finally {
+      setPendingProjectId(null);
+    }
+  };
+
+  const handleFormToggle = async (formId, checked) => {
+    setPendingFormId(formId);
+    try {
+      await onToggleFormUsage(formId, checked);
+    } catch {
+      // The underlying handler owns error reporting/state; just clear pending.
+    } finally {
+      setPendingFormId(null);
+    }
+  };
 
   const formsByProjectId = useMemo(() => {
     return forms.reduce((lookup, form) => {
@@ -231,14 +258,17 @@ function AdminDashboardPage({
                   </div>
                   <div className="dashboard-project-controls">
                     <label
-                      className="toggle-switch-label table-status-switch"
+                      className={`toggle-switch-label table-status-switch${
+                        pendingProjectId === project.project_id ? " is-pending" : ""
+                      }`}
                       title={projectActive ? "ปิดใช้งานโครงการ" : "เปิดใช้งานโครงการ"}
                     >
                       <input
                         type="checkbox"
                         checked={projectActive}
+                        disabled={pendingProjectId === project.project_id}
                         onChange={(event) =>
-                          onToggleProjectUsage(project.project_id, event.target.checked)
+                          handleProjectToggle(project.project_id, event.target.checked)
                         }
                       />
                       <span
@@ -270,27 +300,31 @@ function AdminDashboardPage({
                           <div className="dashboard-form-info">
                             <p className="dashboard-form-name">{form.form_name}</p>
                             <p className="dashboard-form-meta">
-                              <span
+                              <FlashPill
+                                value={form.status}
                                 className={`status-pill ${
                                   isPublished ? "status-pill-active" : "status-pill-draft"
                                 }`}
                               >
                                 {isPublished ? "เผยแพร่" : "ฉบับร่าง"}
-                              </span>
+                              </FlashPill>
                               <span className="dashboard-form-type">{form.form_type}</span>
                               <span className="dashboard-form-path">/forms/{form.public_path}</span>
                             </p>
                           </div>
                           <div className="dashboard-form-actions">
                             <label
-                              className="toggle-switch-label table-status-switch"
+                              className={`toggle-switch-label table-status-switch${
+                                pendingFormId === form.form_id ? " is-pending" : ""
+                              }`}
                               title={isPublished ? "ปิดการเผยแพร่" : "เผยแพร่ฟอร์ม"}
                             >
                               <input
                                 type="checkbox"
                                 checked={isPublished}
+                                disabled={pendingFormId === form.form_id}
                                 onChange={(event) =>
-                                  onToggleFormUsage(form.form_id, event.target.checked)
+                                  handleFormToggle(form.form_id, event.target.checked)
                                 }
                               />
                               <span

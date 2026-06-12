@@ -1,5 +1,5 @@
-import { CheckCircle2, ExternalLink, Mail, MailCheck, Pencil, Trash2 } from "lucide-react";
-import { Button } from "../../components/ui";
+import { CheckCircle2, ExternalLink, Mail, MailCheck, Pencil, Trash2, Inbox } from "lucide-react";
+import { Button, TableEmpty } from "../../components/ui";
 import { STATUS_META, SOURCE_TYPE_LABELS } from "./constants";
 
 const CHECKIN_ROLES = ["super_admin", "admin", "staff"];
@@ -21,7 +21,7 @@ function SubmissionsTable({
 
   return (
     <div className="templates-table-wrap">
-      <table className="templates-table submissions-table">
+      <table className="templates-table submissions-table table-cards">
         <thead>
           <tr>
             <th className="table-col-secondary">Submission Code</th>
@@ -35,13 +35,16 @@ function SubmissionsTable({
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <tr>
-              <td className="empty-row" colSpan={7}>
-                {isPreRegister
-                  ? "ยังไม่มีรายชื่อล่วงหน้า — กด “+ เพิ่มรายชื่อ” หรือนำเข้าจาก Excel"
-                  : "ยังไม่มีคำตอบที่ผู้เข้าร่วมกรอกเอง"}
-              </td>
-            </tr>
+            <TableEmpty
+              colSpan={7}
+              icon={<Inbox size={20} aria-hidden="true" />}
+              title={isPreRegister ? "ยังไม่มีรายชื่อล่วงหน้า" : "ยังไม่มีคำตอบ"}
+              description={
+                isPreRegister
+                  ? "กด “+ เพิ่มรายชื่อ” หรือนำเข้าจาก Excel เพื่อเริ่มต้น"
+                  : "ยังไม่มีคำตอบที่ผู้เข้าร่วมกรอกเอง"
+              }
+            />
           ) : (
             rows.map((row) => {
               const statusMeta = STATUS_META[row.attendance_status] || STATUS_META.submitted;
@@ -51,22 +54,22 @@ function SubmissionsTable({
                 row.attendance_status !== "completed";
               return (
                 <tr key={row.submission_id}>
-                  <td className="table-col-secondary">
+                  <td className="table-col-secondary" data-label="รหัส">
                     <span className="table-code">{row.submission_code}</span>
                   </td>
-                  <td className="table-col-primary table-col-left">
+                  <td className="table-col-primary table-col-left" data-label="ผู้ตอบ">
                     <div className="table-primary-cell">
                       <p>{row.respondent_name}</p>
                       <small>{row.respondent_email}</small>
                     </div>
                   </td>
-                  <td className="table-col-meta">
+                  <td className="table-col-meta" data-label="โครงการ/ฟอร์ม">
                     <div className="table-primary-cell">
                       <p>{row.project_name}</p>
                       <small>{row.form_name}</small>
                     </div>
                   </td>
-                  <td className="table-col-date">
+                  <td className="table-col-date" data-label="เวลา">
                     <div className="table-primary-cell">
                       <p>{new Date(row.submitted_at).toLocaleString("th-TH")}</p>
                       <small>
@@ -76,15 +79,15 @@ function SubmissionsTable({
                       </small>
                     </div>
                   </td>
-                  <td className="table-col-status">
+                  <td className="table-col-status" data-label="สถานะ">
                     <div className="table-status-readout">
                       <span className={statusMeta.className}>{statusMeta.label}</span>
                     </div>
                   </td>
-                  <td className="table-col-status">
+                  <td className="table-col-status" data-label="ที่มา">
                     {SOURCE_TYPE_LABELS[row.source_type] || row.source_type || "-"}
                   </td>
-                  <td className="table-col-actions">
+                  <td className="table-col-actions" data-label="การจัดการ">
                     <div className="table-actions">
                       {showCheckIn ? (
                         <Button

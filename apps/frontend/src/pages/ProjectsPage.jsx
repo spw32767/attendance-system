@@ -7,10 +7,11 @@ import {
   Archive,
   ArchiveRestore,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  FolderOpen
 } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
-import { Button, ConfirmDialog, PageHead, useToast } from "../components/ui";
+import { Button, ConfirmDialog, PageHead, TableEmpty, useToast } from "../components/ui";
 
 
 
@@ -189,7 +190,7 @@ function ProjectsPage({
         </div>
 
         <div className="templates-table-wrap">
-          <table className="templates-table project-table">
+          <table className="templates-table project-table table-cards">
             <thead>
               <tr>
                 <th className="table-col-index">#</th>
@@ -203,11 +204,16 @@ function ProjectsPage({
             </thead>
             <tbody>
               {pagedProjects.length === 0 ? (
-                <tr>
-                  <td className="empty-row" colSpan={7}>
-                    ไม่พบโครงการ
-                  </td>
-                </tr>
+                <TableEmpty
+                  colSpan={7}
+                  icon={<FolderOpen size={20} aria-hidden="true" />}
+                  title={searchText.trim() ? "ไม่พบโครงการที่ตรงกับคำค้นหา" : "ยังไม่มีโครงการ"}
+                  description={
+                    searchText.trim()
+                      ? "ลองปรับคำค้นหา หรือล้างตัวกรองเพื่อดูทั้งหมด"
+                      : "สร้างโครงการแรกเพื่อเริ่มเก็บข้อมูลการเข้าร่วม"
+                  }
+                />
               ) : (
                 pagedProjects.map((project, index) => (
                   <tr
@@ -215,14 +221,14 @@ function ProjectsPage({
                     style={project.is_archived ? { opacity: 0.55 } : undefined}
                   >
                     <td className="table-col-index">{startIndex + index + 1}</td>
-                    <td className="table-col-primary table-col-left">
+                    <td className="table-col-primary table-col-left" data-label="โครงการ">
                       <div className="table-primary-cell">
                         <p>{project.project_name}</p>
                         <small>{project.project_code}</small>
                       </div>
                     </td>
-                    <td className="table-col-secondary">{project.project_type_label || project.project_type}</td>
-                    <td className="table-col-meta">
+                    <td className="table-col-secondary" data-label="ประเภท">{project.project_type_label || project.project_type}</td>
+                    <td className="table-col-meta" data-label="เว็บไซต์">
                       {project.source_url ? (
                         <a href={project.source_url} target="_blank" rel="noreferrer">
                           {project.source_url}
@@ -231,8 +237,8 @@ function ProjectsPage({
                         <span>-</span>
                       )}
                     </td>
-                    <td className="table-col-date">{formatDateTime(project.updated_at)}</td>
-                    <td className="table-col-status">
+                    <td className="table-col-date" data-label="อัปเดตล่าสุด">{formatDateTime(project.updated_at)}</td>
+                    <td className="table-col-status" data-label="สถานะ">
                       <div className="table-status-readout">
                         {project.is_archived ? (
                           <span className="status-pill status-pill-inactive">
@@ -251,7 +257,7 @@ function ProjectsPage({
                         )}
                       </div>
                     </td>
-                    <td className="table-col-actions">
+                    <td className="table-col-actions" data-label="การจัดการ">
                       <div className="table-actions table-actions-nowrap">
                         {project.is_archived ? (
                           <Button
